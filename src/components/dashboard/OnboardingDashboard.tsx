@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -9,125 +9,129 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Filter, Search, Calendar as CalendarIcon, Users, FileText, Clock, CheckCircle, Eye, FolderOpen, Image, File } from "lucide-react";
+import { Download, Filter, Search, Calendar as CalendarIcon, Users, FileText, Clock, CheckCircle, Eye, FolderOpen, Image, File, Loader2, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { API_URLS } from "@/components/apiconfig/api_urls";
+import axiosInstance from "@/components/apiconfig/axios";
 
 interface ApplicationDocument {
-  id: string;
-  name: string;
-  type: 'image' | 'pdf' | 'document';
-  url: string;
-  uploadedDate: Date;
+  document_type: string;
+  image: string;
+  original_filename: string;
+  file_size: number;
+  uploaded_at: string;
+}
+
+interface SellerDetails {
+  id: number;
+  address_line: string;
+  village: string;
+  post_office: string;
+  panchayat: string;
+  municipality: string;
+  taluk: string;
+  district: string;
+  state: string;
+  pin_code: string;
+  place: string;
+}
+
+interface EducationEmployment {
+  id: number;
+  highest_qualification: string;
+  aadhaar_number: string;
+  pan_number: string;
+  previous_employer: string;
+  experience_years: string;
+  joining_date: string;
+  branch: string;
+  designation: string;
+}
+
+interface DocumentUploads {
+  title: string | null;
+  created_at: string;
+  updated_at: string;
+  images: ApplicationDocument[];
 }
 
 interface OnboardingApplication {
-  id: string;
-  employeeName: string;
+  uuid: string;
+  application_id: string;
+  full_name: string;
+  father_name: string;
+  date_of_birth: string;
+  gender: string;
+  marital_status: string;
+  blood_group: string;
+  mobile_number: string;
   email: string;
-  department: string;
-  position: string;
-  status: 'pending' | 'approved' | 'rejected' | 'under-review';
-  submittedDate: Date;
-  reviewedBy?: string;
-  documents: ApplicationDocument[];
-  totalDocuments: number;
+  emergency_contact_number: string;
+  created_at: string;
+  status: 'pending' | 'approved' | 'rejected' | 'under_review';
+  seller_details: SellerDetails[];
+  education_employment: EducationEmployment | null;
+  document_uploads: DocumentUploads | null;
 }
 
-// Mock data for demonstration
-const mockApplications: OnboardingApplication[] = [
-  {
-    id: "ONB001",
-    employeeName: "John Doe",
-    email: "john.doe@company.com",
-    department: "Engineering",
-    position: "Software Developer",
-    status: "approved",
-    submittedDate: new Date("2024-01-15"),
-    reviewedBy: "HR Manager",
-    totalDocuments: 8,
-    documents: [
-      { id: "doc1", name: "Resume.pdf", type: "pdf", url: "/mock/resume.pdf", uploadedDate: new Date("2024-01-15") },
-      { id: "doc2", name: "Passport.jpg", type: "image", url: "/mock/passport.jpg", uploadedDate: new Date("2024-01-15") },
-      { id: "doc3", name: "Educational_Certificate.pdf", type: "pdf", url: "/mock/education.pdf", uploadedDate: new Date("2024-01-15") },
-      { id: "doc4", name: "Experience_Letter.pdf", type: "document", url: "/mock/experience.pdf", uploadedDate: new Date("2024-01-15") },
-      { id: "doc5", name: "Aadhar_Card.jpg", type: "image", url: "/mock/aadhar.jpg", uploadedDate: new Date("2024-01-15") },
-      { id: "doc6", name: "PAN_Card.jpg", type: "image", url: "/mock/pan.jpg", uploadedDate: new Date("2024-01-15") },
-      { id: "doc7", name: "Police_Clearance.pdf", type: "pdf", url: "/mock/police.pdf", uploadedDate: new Date("2024-01-15") },
-      { id: "doc8", name: "CIBIL_Report.pdf", type: "pdf", url: "/mock/cibil.pdf", uploadedDate: new Date("2024-01-15") }
-    ]
-  },
-  {
-    id: "ONB002",
-    employeeName: "Jane Smith",
-    email: "jane.smith@company.com",
-    department: "Marketing",
-    position: "Marketing Specialist",
-    status: "pending",
-    submittedDate: new Date("2024-01-20"),
-    totalDocuments: 7,
-    documents: [
-      { id: "doc9", name: "Resume.pdf", type: "pdf", url: "/mock/resume2.pdf", uploadedDate: new Date("2024-01-20") },
-      { id: "doc10", name: "Passport.jpg", type: "image", url: "/mock/passport2.jpg", uploadedDate: new Date("2024-01-20") },
-      { id: "doc11", name: "Educational_Certificate.pdf", type: "pdf", url: "/mock/education2.pdf", uploadedDate: new Date("2024-01-20") },
-      { id: "doc12", name: "Experience_Letter.pdf", type: "document", url: "/mock/experience2.pdf", uploadedDate: new Date("2024-01-20") },
-      { id: "doc13", name: "Aadhar_Card.jpg", type: "image", url: "/mock/aadhar2.jpg", uploadedDate: new Date("2024-01-20") },
-      { id: "doc14", name: "PAN_Card.jpg", type: "image", url: "/mock/pan2.jpg", uploadedDate: new Date("2024-01-20") },
-      { id: "doc15", name: "Police_Clearance.pdf", type: "pdf", url: "/mock/police2.pdf", uploadedDate: new Date("2024-01-20") }
-    ]
-  },
-  {
-    id: "ONB003",
-    employeeName: "Mike Johnson",
-    email: "mike.johnson@company.com",
-    department: "Finance",
-    position: "Financial Analyst",
-    status: "under-review",
-    submittedDate: new Date("2024-01-18"),
-    reviewedBy: "Finance Head",
-    totalDocuments: 8,
-    documents: [
-      { id: "doc16", name: "Resume.pdf", type: "pdf", url: "/mock/resume3.pdf", uploadedDate: new Date("2024-01-18") },
-      { id: "doc17", name: "Passport.jpg", type: "image", url: "/mock/passport3.jpg", uploadedDate: new Date("2024-01-18") },
-      { id: "doc18", name: "Educational_Certificate.pdf", type: "pdf", url: "/mock/education3.pdf", uploadedDate: new Date("2024-01-18") },
-      { id: "doc19", name: "Experience_Letter.pdf", type: "document", url: "/mock/experience3.pdf", uploadedDate: new Date("2024-01-18") },
-      { id: "doc20", name: "Aadhar_Card.jpg", type: "image", url: "/mock/aadhar3.jpg", uploadedDate: new Date("2024-01-18") },
-      { id: "doc21", name: "PAN_Card.jpg", type: "image", url: "/mock/pan3.jpg", uploadedDate: new Date("2024-01-18") },
-      { id: "doc22", name: "Police_Clearance.pdf", type: "pdf", url: "/mock/police3.pdf", uploadedDate: new Date("2024-01-18") },
-      { id: "doc23", name: "CIBIL_Report.pdf", type: "pdf", url: "/mock/cibil3.pdf", uploadedDate: new Date("2024-01-18") }
-    ]
-  },
-  {
-    id: "ONB004",
-    employeeName: "Sarah Wilson",
-    email: "sarah.wilson@company.com",
-    department: "HR",
-    position: "HR Coordinator",
-    status: "rejected",
-    submittedDate: new Date("2024-01-12"),
-    reviewedBy: "HR Director",
-    totalDocuments: 6,
-    documents: [
-      { id: "doc24", name: "Resume.pdf", type: "pdf", url: "/mock/resume4.pdf", uploadedDate: new Date("2024-01-12") },
-      { id: "doc25", name: "Passport.jpg", type: "image", url: "/mock/passport4.jpg", uploadedDate: new Date("2024-01-12") },
-      { id: "doc26", name: "Educational_Certificate.pdf", type: "pdf", url: "/mock/education4.pdf", uploadedDate: new Date("2024-01-12") },
-      { id: "doc27", name: "Experience_Letter.pdf", type: "document", url: "/mock/experience4.pdf", uploadedDate: new Date("2024-01-12") },
-      { id: "doc28", name: "Aadhar_Card.jpg", type: "image", url: "/mock/aadhar4.jpg", uploadedDate: new Date("2024-01-12") },
-      { id: "doc29", name: "PAN_Card.jpg", type: "image", url: "/mock/pan4.jpg", uploadedDate: new Date("2024-01-12") }
-    ]
-  }
-];
+interface ApiResponse {
+  code: number;
+  message: string;
+  data: OnboardingApplication[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+  status_summary: {
+    pending: number;
+    under_review: number;
+    approved: number;
+    rejected: number;
+  };
+}
 
 export function OnboardingDashboard() {
-  const [applications, setApplications] = useState<OnboardingApplication[]>(mockApplications);
-  const [filteredApplications, setFilteredApplications] = useState<OnboardingApplication[]>(mockApplications);
+  const [applications, setApplications] = useState<OnboardingApplication[]>([]);
+  const [filteredApplications, setFilteredApplications] = useState<OnboardingApplication[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
   const [dateFrom, setDateFrom] = useState<Date>();
   const [dateTo, setDateTo] = useState<Date>();
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [apiResponse, setApiResponse] = useState<ApiResponse | null>(null);
   const { toast } = useToast();
 
+  // Fetch applications from API
+  useEffect(() => {
+    const fetchApplications = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        const response = await axiosInstance.get(API_URLS.USERS.GET_USERS);
+        
+        setApiResponse(response.data);
+        setApplications(response.data.data);
+        setFilteredApplications(response.data.data);
+        
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch applications');
+        console.error('Error fetching applications:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchApplications();
+  }, []);
+
+
+  
   const handleSearch = (term: string) => {
     setSearchTerm(term);
     applyFilters(term, statusFilter, departmentFilter, dateFrom, dateTo);
@@ -154,9 +158,9 @@ export function OnboardingDashboard() {
 
     if (search) {
       filtered = filtered.filter(app => 
-        app.employeeName.toLowerCase().includes(search.toLowerCase()) ||
+        app.full_name.toLowerCase().includes(search.toLowerCase()) ||
         app.email.toLowerCase().includes(search.toLowerCase()) ||
-        app.id.toLowerCase().includes(search.toLowerCase())
+        app.application_id.toLowerCase().includes(search.toLowerCase())
       );
     }
 
@@ -164,69 +168,79 @@ export function OnboardingDashboard() {
       filtered = filtered.filter(app => app.status === status);
     }
 
+    // Filter by department using education_employment branch
     if (department !== "all") {
-      filtered = filtered.filter(app => app.department === department);
+      filtered = filtered.filter(app => 
+        app.education_employment?.branch === department
+      );
     }
 
     if (from && to) {
-      filtered = filtered.filter(app => 
-        app.submittedDate >= from && app.submittedDate <= to
-      );
+      filtered = filtered.filter(app => {
+        const appDate = new Date(app.created_at);
+        return appDate >= from && appDate <= to;
+      });
     }
 
     setFilteredApplications(filtered);
   };
 
   const handleDownload = (downloadFormat: string) => {
-    // Create downloadable data with current filters applied
     const dataToDownload = filteredApplications.map(app => ({
-      'Application ID': app.id,
-      'Employee Name': app.employeeName,
+      'Application ID': app.application_id,
+      'Employee Name': app.full_name,
       'Email': app.email,
-      'Department': app.department,
-      'Position': app.position,
+      'Department': app.education_employment?.branch || 'N/A',
+      'Position': app.education_employment?.designation || 'N/A',
       'Status': app.status,
-      'Submitted Date': format(app.submittedDate, "yyyy-MM-dd"),
-      'Documents Count': `${app.documents.length}/${app.totalDocuments}`,
-      'Reviewed By': app.reviewedBy || 'Not Assigned'
+      'Submitted Date': format(new Date(app.created_at), "MM/dd/yyyy"),
+      'Documents Count': app.document_uploads?.images.length || 0,
+      'Blood Group': app.blood_group,
+      'Mobile': app.mobile_number,
+      'Emergency Contact': app.emergency_contact_number
     }));
 
-    if (downloadFormat === 'csv') {
-      downloadCSV(dataToDownload);
-    } else if (downloadFormat === 'excel') {
+    if (downloadFormat === 'excel') {
       downloadExcel(dataToDownload);
-    } else if (downloadFormat === 'pdf') {
-      downloadPDF(dataToDownload);
     }
 
     toast({
       title: `Download Started`,
-      description: `Exporting ${filteredApplications.length} records in ${downloadFormat.toUpperCase()} format.`,
+      description: `Exporting ${filteredApplications.length} records in Excel format.`,
     });
   };
 
-  const downloadCSV = (data: any[]) => {
+  const downloadExcel = (data: any[]) => {
     if (data.length === 0) return;
     
-    const headers = Object.keys(data[0]).join(',');
-    const csvContent = [
-      headers,
-      ...data.map(row => Object.values(row).map(val => `"${val}"`).join(','))
-    ].join('\n');
+    // Create headers row
+    const headers = Object.keys(data[0]);
+    const headerRow = headers.join('\t');
     
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `onboarding-applications-${format(new Date(), 'yyyy-MM-dd')}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
-
-  const downloadExcel = (data: any[]) => {
-    // Simulate Excel download - in real app, use a library like xlsx
-    const csvContent = data.map(row => Object.values(row).join('\t')).join('\n');
-    const blob = new Blob([csvContent], { type: 'application/vnd.ms-excel' });
+    // Create data rows with proper formatting
+    const dataRows = data.map(row => 
+      headers.map(header => {
+        const value = row[header];
+        // Format dates and numbers properly for Excel
+        if (header === 'Submitted Date' && value !== 'N/A') {
+          return value; // Already formatted as MM/dd/yyyy
+        }
+        if (header === 'Documents Count') {
+          return value.toString();
+        }
+        if (header === 'Mobile' || header === 'Emergency Contact') {
+          // Format phone numbers as text to preserve leading zeros
+          return `"${value}"`;
+        }
+        return value;
+      }).join('\t')
+    );
+    
+    // Combine headers and data
+    const excelContent = [headerRow, ...dataRows].join('\n');
+    
+    // Create and download the file
+    const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
@@ -235,43 +249,30 @@ export function OnboardingDashboard() {
     window.URL.revokeObjectURL(url);
   };
 
-  const downloadPDF = (data: any[]) => {
-    // Simulate PDF download - in real app, use a library like jsPDF
-    const content = data.map(row => Object.entries(row).map(([key, value]) => `${key}: ${value}`).join(', ')).join('\n\n');
-    const blob = new Blob([content], { type: 'application/pdf' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `onboarding-applications-${format(new Date(), 'yyyy-MM-dd')}.pdf`;
-    link.click();
-    window.URL.revokeObjectURL(url);
-  };
-
   const downloadDocument = (doc: ApplicationDocument) => {
-    // Simulate document download
     const link = document.createElement('a');
-    link.href = doc.url;
-    link.download = doc.name;
+    link.href = doc.image;
+    link.download = doc.original_filename;
+    link.target = '_blank';
     link.click();
     
     toast({
       title: "Document Downloaded",
-      description: `${doc.name} has been downloaded.`,
+      description: `${doc.original_filename} has been downloaded.`,
     });
   };
 
   const downloadAllDocuments = (applicationId: string) => {
-    const app = applications.find(a => a.id === applicationId);
-    if (!app) return;
+    const app = applications.find(a => a.application_id === applicationId);
+    if (!app || !app.document_uploads) return;
 
-    // Simulate bulk download - in real app, create a zip file
-    app.documents.forEach((doc, index) => {
-      setTimeout(() => downloadDocument(doc), index * 500); // Stagger downloads
+    app.document_uploads.images.forEach((doc, index) => {
+      setTimeout(() => downloadDocument(doc), index * 500);
     });
 
     toast({
       title: "Bulk Download Started",
-      description: `Downloading all ${app.documents.length} documents for ${app.employeeName}.`,
+      description: `Downloading all ${app.document_uploads.images.length} documents for ${app.full_name}.`,
     });
   };
 
@@ -280,25 +281,25 @@ export function OnboardingDashboard() {
       pending: "secondary",
       approved: "default",
       rejected: "destructive",
-      "under-review": "outline"
+      "under_review": "outline"
     } as const;
 
     return (
       <Badge variant={variants[status as keyof typeof variants] || "secondary"}>
-        {status.replace("-", " ").toUpperCase()}
+        {status.replace("_", " ").toUpperCase()}
       </Badge>
     );
   };
 
   const getDocumentIcon = (type: string) => {
-    switch (type) {
-      case 'image':
-        return <Image className="h-4 w-4" />;
-      case 'pdf':
-        return <FileText className="h-4 w-4" />;
-      default:
-        return <File className="h-4 w-4" />;
+    if (type.includes('image') || ['passport', 'aadhaar_front', 'aadhaar_back', 'voter_id', 'pan'].includes(type)) {
+      return <Image className="h-4 w-4" />;
     }
+    return <FileText className="h-4 w-4" />;
+  };
+
+  const formatDocumentType = (type: string) => {
+    return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
   };
 
   const DocumentsDialog = ({ application }: { application: OnboardingApplication }) => (
@@ -306,30 +307,32 @@ export function OnboardingDashboard() {
       <DialogTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2">
           <Eye className="h-4 w-4" />
-          View ({application.documents.length})
+          View ({application.document_uploads?.images.length || 0})
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Documents - {application.employeeName}</DialogTitle>
+          <DialogTitle>Documents - {application.full_name}</DialogTitle>
           <DialogDescription>
-            Application ID: {application.id} | Total Documents: {application.documents.length}/{application.totalDocuments}
+            Application ID: {application.application_id} | Total Documents: {application.document_uploads?.images.length || 0}
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-4">
-          <div className="flex justify-end">
-            <Button onClick={() => downloadAllDocuments(application.id)} className="gap-2">
-              <Download className="h-4 w-4" />
-              Download All Documents
-            </Button>
-          </div>
+          {application.document_uploads && application.document_uploads.images.length > 0 && (
+            <div className="flex justify-end">
+              <Button onClick={() => downloadAllDocuments(application.application_id)} className="gap-2">
+                <Download className="h-4 w-4" />
+                Download All Documents
+              </Button>
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {application.documents.map((doc) => (
-              <Card key={doc.id} className="p-4">
+            {application.document_uploads?.images.map((doc, index) => (
+              <Card key={index} className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    {getDocumentIcon(doc.type)}
-                    <span className="font-medium text-sm">{doc.name}</span>
+                    {getDocumentIcon(doc.document_type)}
+                    <span className="font-medium text-sm">{doc.original_filename}</span>
                   </div>
                   <Button
                     variant="ghost"
@@ -341,46 +344,92 @@ export function OnboardingDashboard() {
                   </Button>
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  Uploaded: {format(doc.uploadedDate, "MMM dd, yyyy")}
+                  Uploaded: {format(new Date(doc.uploaded_at), "MMM dd, yyyy")}
                 </div>
-                <div className="text-xs text-muted-foreground capitalize">
-                  Type: {doc.type}
+                <div className="text-xs text-muted-foreground">
+                  Type: {formatDocumentType(doc.document_type)}
                 </div>
-                {doc.type === 'image' && (
-                  <div className="mt-2 p-2 bg-muted rounded border-dashed border-2">
-                    <div className="text-xs text-center text-muted-foreground">
-                      Image Preview Available
-                    </div>
+                <div className="text-xs text-muted-foreground">
+                  Size: {(doc.file_size / 1024).toFixed(1)} KB
+                </div>
+                <div className="mt-2 p-2 bg-muted rounded border-dashed border-2">
+                  <div className="text-xs text-center text-muted-foreground">
+                    {getDocumentIcon(doc.document_type).type === Image ? 'Image Preview Available' : 'Document Available'}
                   </div>
-                )}
+                </div>
               </Card>
-            ))}
+            )) || (
+              <div className="col-span-2 text-center py-8 text-muted-foreground">
+                No documents uploaded yet.
+              </div>
+            )}
           </div>
-          {application.documents.length === 0 && (
-            <div className="text-center py-8 text-muted-foreground">
-              No documents uploaded yet.
-            </div>
-          )}
         </div>
       </DialogContent>
     </Dialog>
   );
 
   const getStatusStats = () => {
-    const stats = applications.reduce((acc, app) => {
-      acc[app.status] = (acc[app.status] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
+    if (!apiResponse) {
+      return [
+        { label: "Total Applications", count: 0, icon: Users, color: "bg-blue-500" },
+        { label: "Pending", count: 0, icon: Clock, color: "bg-yellow-500" },
+        { label: "Under Review", count: 0, icon: FileText, color: "bg-orange-500" },
+        { label: "Approved", count: 0, icon: CheckCircle, color: "bg-green-500" },
+        { label: "Rejected", count: 0, icon: AlertCircle, color: "bg-red-500" }
+      ];
+    }
 
     return [
-      { label: "Total Applications", count: applications.length, icon: Users, color: "bg-blue-500" },
-      { label: "Pending", count: stats.pending || 0, icon: Clock, color: "bg-yellow-500" },
-      { label: "Under Review", count: stats["under-review"] || 0, icon: FileText, color: "bg-orange-500" },
-      { label: "Approved", count: stats.approved || 0, icon: CheckCircle, color: "bg-green-500" }
+      { label: "Total Applications", count: apiResponse.pagination.total, icon: Users, color: "bg-blue-500" },
+      { label: "Pending", count: apiResponse.status_summary.pending, icon: Clock, color: "bg-yellow-500" },
+      { label: "Under Review", count: apiResponse.status_summary.under_review, icon: FileText, color: "bg-orange-500" },
+      { label: "Approved", count: apiResponse.status_summary.approved, icon: CheckCircle, color: "bg-green-500" },
+      { label: "Rejected", count: apiResponse.status_summary.rejected, icon: AlertCircle, color: "bg-red-500" }
     ];
   };
 
-  const departments = [...new Set(applications.map(app => app.department))];
+  const departments = [...new Set(applications.map(app => app.education_employment?.branch).filter(Boolean))];
+
+  // Loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
+        <div className="max-w-7xl mx-auto">
+          <Card className="shadow-lg">
+            <CardContent className="p-12">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="text-lg font-medium">Loading applications...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
+        <div className="max-w-7xl mx-auto">
+          <Card className="shadow-lg">
+            <CardContent className="p-12">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <AlertCircle className="h-8 w-8 text-destructive" />
+                <p className="text-lg font-medium text-destructive">Error loading applications</p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button onClick={() => window.location.reload()}>
+                  Retry
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
@@ -399,7 +448,7 @@ export function OnboardingDashboard() {
         </Card>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
           {getStatusStats().map((stat, index) => {
             const Icon = stat.icon;
             return (
@@ -449,7 +498,7 @@ export function OnboardingDashboard() {
                 <SelectContent>
                   <SelectItem value="all">All Statuses</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
-                  <SelectItem value="under-review">Under Review</SelectItem>
+                  <SelectItem value="under_review">Under Review</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="rejected">Rejected</SelectItem>
                 </SelectContent>
@@ -458,10 +507,10 @@ export function OnboardingDashboard() {
               {/* Department Filter */}
               <Select value={departmentFilter} onValueChange={handleDepartmentFilter}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Filter by department" />
+                  <SelectValue placeholder="Filter by branch" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Departments</SelectItem>
+                  <SelectItem value="all">All Branches</SelectItem>
                   {departments.map(dept => (
                     <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                   ))}
@@ -515,17 +564,9 @@ export function OnboardingDashboard() {
               <CardDescription>Manage employee onboarding applications</CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => handleDownload("csv")} variant="outline" size="sm" disabled={filteredApplications.length === 0}>
-                <Download className="h-4 w-4 mr-2" />
-                CSV ({filteredApplications.length} records)
-              </Button>
               <Button onClick={() => handleDownload("excel")} variant="outline" size="sm" disabled={filteredApplications.length === 0}>
                 <Download className="h-4 w-4 mr-2" />
                 Excel ({filteredApplications.length} records)
-              </Button>
-              <Button onClick={() => handleDownload("pdf")} variant="outline" size="sm" disabled={filteredApplications.length === 0}>
-                <Download className="h-4 w-4 mr-2" />
-                PDF ({filteredApplications.length} records)
               </Button>
             </div>
           </CardHeader>
@@ -536,12 +577,12 @@ export function OnboardingDashboard() {
                   <TableHead>Application ID</TableHead>
                   <TableHead>Employee Name</TableHead>
                   <TableHead>Email</TableHead>
-                  <TableHead>Department</TableHead>
+                  <TableHead>Branch</TableHead>
                   <TableHead>Position</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Submitted Date</TableHead>
                   <TableHead>Documents</TableHead>
-                  <TableHead>Reviewed By</TableHead>
+                  <TableHead>Mobile</TableHead>
                   <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -554,23 +595,23 @@ export function OnboardingDashboard() {
                   </TableRow>
                 ) : (
                   filteredApplications.map((app) => (
-                    <TableRow key={app.id}>
-                      <TableCell className="font-mono">{app.id}</TableCell>
-                      <TableCell className="font-medium">{app.employeeName}</TableCell>
+                    <TableRow key={app.uuid}>
+                      <TableCell className="font-mono">{app.application_id}</TableCell>
+                      <TableCell className="font-medium">{app.full_name}</TableCell>
                       <TableCell>{app.email}</TableCell>
-                      <TableCell>{app.department}</TableCell>
-                      <TableCell>{app.position}</TableCell>
+                      <TableCell>{app.education_employment?.branch || 'N/A'}</TableCell>
+                      <TableCell>{app.education_employment?.designation || 'N/A'}</TableCell>
                       <TableCell>{getStatusBadge(app.status)}</TableCell>
-                      <TableCell>{format(app.submittedDate, "MMM dd, yyyy")}</TableCell>
+                      <TableCell>{format(new Date(app.created_at), "MMM dd, yyyy")}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-2">
-                          <span>{app.documents.length}/{app.totalDocuments}</span>
-                          {app.documents.length > 0 && (
+                          <span>{app.document_uploads?.images.length || 0}</span>
+                          {app.document_uploads && app.document_uploads.images.length > 0 && (
                             <FolderOpen className="h-4 w-4 text-muted-foreground" />
                           )}
                         </div>
                       </TableCell>
-                      <TableCell>{app.reviewedBy || "-"}</TableCell>
+                      <TableCell>{app.mobile_number}</TableCell>
                       <TableCell>
                         <DocumentsDialog application={app} />
                       </TableCell>
