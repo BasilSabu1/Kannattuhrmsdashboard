@@ -1,8 +1,9 @@
 import axios from "axios";
 
-const API_BASE_URL = "http://localhost:8000/"; 
+const API_BASE_URL = "https://backend.hrms.pixelsoft.online/"; 
 
 //http://localhost:8000/
+//https://backend.hrms.pixelsoft.online/
 
 const axiosInstance = axios.create({
   baseURL: API_BASE_URL,

@@ -86,10 +86,17 @@ const HRManagement = () => {
     email: "",
     contact: "",
     address: "",
-    role: 1,
+    role: 2, // Default to HR role (ID: 2) instead of Admin (ID: 1)
     password: ""
   });
   const { toast } = useToast();
+
+  const [pagination, setPagination] = useState({
+    total: 0,
+    page: 1,
+    limit: 10,
+    totalPages: 1
+  });
 
   // Fetch HR data on component mount
   useEffect(() => {
@@ -97,7 +104,7 @@ const HRManagement = () => {
     fetchRoles();
   }, []);
 
-  const validateForm = (): boolean => {
+  const validateForm = async (isCreating = true): Promise<boolean> => {
     const errors: FormErrors = {};
 
     // Name validation
@@ -113,14 +120,32 @@ const HRManagement = () => {
       errors.email = "Email is required";
     } else if (!emailRegex.test(formData.email)) {
       errors.email = "Please enter a valid email address";
+    } else {
+      // Check for duplicate email (excluding current user when editing)
+      const duplicateEmail = hrData.find(hr =>
+        hr.email.toLowerCase() === formData.email.toLowerCase() &&
+        (!editingHR || hr.id !== editingHR.id)
+      );
+      if (duplicateEmail) {
+        errors.email = "HR with this email already exists";
+      }
     }
 
-    // Contact validation
-    const contactRegex = /^[0-9]{10,15}$/;
+    // Contact validation - only numbers and exactly 10 digits
+    const contactRegex = /^[0-9]{10}$/;
     if (!formData.contact.trim()) {
       errors.contact = "Contact number is required";
     } else if (!contactRegex.test(formData.contact.replace(/\s+/g, ''))) {
-      errors.contact = "Please enter a valid contact number (10-15 digits)";
+      errors.contact = "Please enter a valid 10-digit contact number";
+    } else {
+      // Check for duplicate contact (excluding current user when editing)
+      const duplicateContact = hrData.find(hr =>
+        hr.contact === formData.contact &&
+        (!editingHR || hr.id !== editingHR.id)
+      );
+      if (duplicateContact) {
+        errors.contact = "HR with this contact number already exists";
+      }
     }
 
     // Address validation
@@ -135,11 +160,17 @@ const HRManagement = () => {
       errors.role = "Please select a role";
     }
 
-    // Password validation (only for new HR)
+    // Password validation
     if (!editingHR) {
+      // For new HR, password is required
       if (!formData.password.trim()) {
         errors.password = "Password is required";
       } else if (formData.password.length < 6) {
+        errors.password = "Password must be at least 6 characters";
+      }
+    } else {
+      // For editing HR, password is optional but if provided, must be at least 6 characters
+      if (formData.password.trim() && formData.password.length < 6) {
         errors.password = "Password must be at least 6 characters";
       }
     }
@@ -148,22 +179,25 @@ const HRManagement = () => {
     return Object.keys(errors).length === 0;
   };
 
-  const fetchHRData = async () => {
+
+  const fetchHRData = async (page = 1) => {
     try {
       setIsLoading(true);
-      const response = await axiosInstance.get(API_URLS.HR.GET_HR);
+      const response = await axiosInstance.get(`${API_URLS.HR.GET_HR}?page=${page}&limit=10`);
       const apiResponse: APIResponse = response.data;
-      
-      // Ensure data is an array
+
       if (apiResponse && Array.isArray(apiResponse.data)) {
         setHrData(apiResponse.data);
+        if (apiResponse.pagination) {
+          setPagination(apiResponse.pagination);
+        }
       } else {
         setHrData([]);
         console.warn("HR data is not in expected format:", apiResponse);
       }
     } catch (error) {
       console.error("Error fetching HR data:", error);
-      setHrData([]); // Set empty array on error
+      setHrData([]);
       toast({
         title: "Error",
         description: "Failed to fetch HR data",
@@ -174,23 +208,24 @@ const HRManagement = () => {
     }
   };
 
+
   const fetchRoles = async () => {
     try {
       // Create a separate axios instance without authorization for roles API
-      const axios = require('axios');
-      const response = await axios.get(API_URLS.ROLES.GET_ROLES);
-      const apiResponse: RolesAPIResponse = response.data;
-      
+      const response = await axiosInstance.get(API_URLS.ROLES.GET_ROLES);
+
       console.log("Roles API Response:", response); // Debug log
-      
+
       // Handle the response structure based on your screenshot
-      if (apiResponse && Array.isArray(apiResponse.data)) {
-        setRoles(apiResponse.data);
-      } else if (apiResponse && apiResponse.code === 200 && Array.isArray(apiResponse.data)) {
-        setRoles(apiResponse.data);
+      // The response.data is directly an array of roles
+      if (response.data && Array.isArray(response.data)) {
+        setRoles(response.data);
+      } else if (response.data && response.data.data && Array.isArray(response.data.data)) {
+        // Fallback for wrapped response structure
+        setRoles(response.data.data);
       } else {
         setRoles([]);
-        console.warn("Roles data is not in expected format:", apiResponse);
+        console.warn("Roles data is not in expected format:", response.data);
       }
     } catch (error) {
       console.error("Error fetching roles:", error);
@@ -204,12 +239,8 @@ const HRManagement = () => {
   };
 
   const handleCreateHR = async () => {
-    if (!validateForm()) {
-      toast({
-        title: "Validation Error",
-        description: "Please fix the form errors before submitting",
-        variant: "destructive",
-      });
+    const isValid = await validateForm(true);
+    if (!isValid) {
       return;
     }
 
@@ -222,36 +253,63 @@ const HRManagement = () => {
       });
       setIsModalOpen(false);
       resetForm();
-      fetchHRData();
-      
+      fetchHRData(pagination.page);
     } catch (error: any) {
       console.error("Error creating HR:", error);
-      const errorMessage = error.response?.data?.message || error.response?.data || "Failed to create HR personnel";
-      toast({
-        title: "Error",
-        description: typeof errorMessage === 'object' ? JSON.stringify(errorMessage) : errorMessage,
-        variant: "destructive",
-      });
+
+      // Handle specific field errors from API
+      if (error.response?.data?.message) {
+        const errorMessage = error.response.data.message;
+        const newErrors: FormErrors = {};
+
+        // Check for email duplicate error
+        if (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('email')) {
+          newErrors.email = "HR with this email already exists";
+        }
+        // Check for contact duplicate error  
+        if (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('contact')) {
+          newErrors.contact = "HR with this contact number already exists";
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+          setFormErrors(prev => ({ ...prev, ...newErrors }));
+        } else {
+          // Show general error if no specific field error
+          toast({
+            title: "Error",
+            description: typeof errorMessage === 'object' ? JSON.stringify(errorMessage) : errorMessage,
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to create HR personnel",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   };
 
+
+
   const handleUpdateHR = async () => {
     if (!editingHR) return;
 
-    if (!validateForm()) {
-      toast({
-        title: "Validation Error",
-        description: "Please fix the form errors before submitting",
-        variant: "destructive",
-      });
+    const isValid = await validateForm(false);
+    if (!isValid) {
       return;
     }
-    
+
     try {
       setIsLoading(true);
-      const { password, ...updateData } = formData;
+      // Only include password in update if it's been changed (not empty)
+      const updateData = { ...formData };
+      if (!formData.password.trim()) {
+        delete updateData.password;
+      }
       await axiosInstance.patch(API_URLS.HR.PATCH_HR(editingHR.id), updateData);
       toast({
         title: "Success",
@@ -260,19 +318,47 @@ const HRManagement = () => {
       setIsModalOpen(false);
       setEditingHR(null);
       resetForm();
-      fetchHRData();
+      fetchHRData(pagination.page);
     } catch (error: any) {
       console.error("Error updating HR:", error);
-      const errorMessage = error.response?.data?.message || error.response?.data || "Failed to update HR personnel";
-      toast({
-        title: "Error",
-        description: typeof errorMessage === 'object' ? JSON.stringify(errorMessage) : errorMessage,
-        variant: "destructive",
-      });
+
+      // Handle specific field errors from API
+      if (error.response?.data?.message) {
+        const errorMessage = error.response.data.message;
+        const newErrors: FormErrors = {};
+
+        // Check for email duplicate error
+        if (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('email')) {
+          newErrors.email = "HR with this email already exists";
+        }
+        // Check for contact duplicate error
+        if (typeof errorMessage === 'string' && errorMessage.toLowerCase().includes('contact')) {
+          newErrors.contact = "HR with this contact number already exists";
+        }
+
+        if (Object.keys(newErrors).length > 0) {
+          setFormErrors(prev => ({ ...prev, ...newErrors }));
+        } else {
+          // Show general error if no specific field error
+          toast({
+            title: "Error",
+            description: typeof errorMessage === 'object' ? JSON.stringify(errorMessage) : errorMessage,
+            variant: "destructive",
+          });
+        }
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to update HR personnel",
+          variant: "destructive",
+        });
+      }
     } finally {
       setIsLoading(false);
     }
   };
+
+
 
   const handleDeleteHR = async (id: number) => {
     try {
@@ -301,7 +387,7 @@ const HRManagement = () => {
       email: "",
       contact: "",
       address: "",
-      role: 1,
+      role: 2, // Default to HR role (ID: 2) instead of Admin (ID: 1)
       password: ""
     });
     setFormErrors({});
@@ -316,7 +402,7 @@ const HRManagement = () => {
       contact: hr.contact,
       address: hr.address,
       role: hr.role,
-      password: ""
+      password: hr.password_display || ""
     });
     setFormErrors({});
     setIsModalOpen(true);
@@ -333,40 +419,92 @@ const HRManagement = () => {
     if (!Array.isArray(roles) || roles.length === 0) {
       return `Role ${roleId}`;
     }
-    
+
     const role = roles.find(r => r.id === roleId);
     return role ? role.name : `Role ${roleId}`;
   };
 
   const handleInputChange = (field: keyof CreateHRData, value: string | number) => {
-    setFormData({ ...formData, [field]: value });
+    let processedValue = value;
+
+    // For contact field, only allow numbers and limit to 10 digits
+    if (field === 'contact' && typeof value === 'string') {
+      processedValue = value.replace(/\D/g, '').slice(0, 10);
+    }
+
+    setFormData({ ...formData, [field]: processedValue });
+
     // Clear error for this field when user starts typing
     if (formErrors[field]) {
       setFormErrors({ ...formErrors, [field]: undefined });
     }
   };
 
+
   // Safely filter HR data with proper checks
   const filteredHRData = Array.isArray(hrData) ? hrData.filter(hr => {
     if (!hr) return false;
-    
+
     const searchLower = searchTerm.toLowerCase();
     const nameMatch = hr.name?.toLowerCase().includes(searchLower) || false;
     const emailMatch = hr.email?.toLowerCase().includes(searchLower) || false;
     const roleMatch = getRoleName(hr.role).toLowerCase().includes(searchLower);
-    
+
     return nameMatch || emailMatch || roleMatch;
   }) : [];
 
   // Safe roles filtering for the select dropdown
-  const availableRoles = Array.isArray(roles) ? roles.filter(role => 
+  const availableRoles = Array.isArray(roles) ? roles.filter(role =>
     role && role.name && role.name.toLowerCase() !== 'admin'
   ) : [];
 
   console.log(availableRoles);
-  
+
   console.log(roles);
-  
+
+  const PaginationComponent = () => {
+    if (pagination.totalPages <= 1) return null;
+
+    return (
+      <div className="flex items-center justify-between px-2 py-4">
+        <div className="text-sm text-muted-foreground">
+          Showing {((pagination.page - 1) * pagination.limit) + 1} to {Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} entries
+        </div>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchHRData(pagination.page - 1)}
+            disabled={pagination.page <= 1 || isLoading}
+          >
+            Previous
+          </Button>
+          <div className="flex items-center space-x-1">
+            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
+              <Button
+                key={page}
+                variant={page === pagination.page ? "default" : "outline"}
+                size="sm"
+                onClick={() => fetchHRData(page)}
+                disabled={isLoading}
+                className="w-8 h-8 p-0"
+              >
+                {page}
+              </Button>
+            ))}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fetchHRData(pagination.page + 1)}
+            disabled={pagination.page >= pagination.totalPages || isLoading}
+          >
+            Next
+          </Button>
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="p-6">
@@ -479,6 +617,7 @@ const HRManagement = () => {
                 )}
               </TableBody>
             </Table>
+            <PaginationComponent />
           </div>
         </CardContent>
       </Card>
@@ -505,7 +644,7 @@ const HRManagement = () => {
                 <p className="text-sm text-red-500">{formErrors.name}</p>
               )}
             </div>
-            
+
             <div className="space-y-2">
               <Label htmlFor="email">Email *</Label>
               <Input
@@ -527,8 +666,11 @@ const HRManagement = () => {
                 id="contact"
                 value={formData.contact}
                 onChange={(e) => handleInputChange('contact', e.target.value)}
-                placeholder="Enter contact number"
+                placeholder="Enter 10-digit contact number"
                 className={formErrors.contact ? "border-red-500" : ""}
+                maxLength={10}
+                pattern="[0-9]*"
+                inputMode="numeric"
               />
               {formErrors.contact && (
                 <p className="text-sm text-red-500">{formErrors.contact}</p>
@@ -552,12 +694,14 @@ const HRManagement = () => {
 
             <div className="space-y-2">
               <Label htmlFor="role">Role *</Label>
-              <Select 
-                value={formData.role.toString()} 
+              <Select
+                value={formData.role.toString()}
                 onValueChange={(value) => handleInputChange('role', parseInt(value))}
               >
                 <SelectTrigger className={formErrors.role ? "border-red-500" : ""}>
-                  <SelectValue placeholder="Select role" />
+                  <SelectValue placeholder="Select role">
+                    {getRoleName(formData.role)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {availableRoles.map(role => (
@@ -572,37 +716,37 @@ const HRManagement = () => {
               )}
             </div>
 
-            {!editingHR && (
-              <div className="space-y-2">
-                <Label htmlFor="password">Password *</Label>
-                <div className="relative">
-                  <Input
-                    id="password"
-                    type={showPassword ? "text" : "password"}
-                    value={formData.password}
-                    onChange={(e) => handleInputChange('password', e.target.value)}
-                    placeholder="Enter password"
-                    className={formErrors.password ? "border-red-500 pr-10" : "pr-10"}
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                    onClick={() => setShowPassword(!showPassword)}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-                {formErrors.password && (
-                  <p className="text-sm text-red-500">{formErrors.password}</p>
-                )}
+            <div className="space-y-2">
+              <Label htmlFor="password">
+                Password {!editingHR && "*"}
+              </Label>
+              <div className="relative">
+                <Input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => handleInputChange('password', e.target.value)}
+                  placeholder={editingHR ? "Leave blank to keep current password" : "Enter password"}
+                  className={formErrors.password ? "border-red-500 pr-10" : "pr-10"}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
+                </Button>
               </div>
-            )}
+              {formErrors.password && (
+                <p className="text-sm text-red-500">{formErrors.password}</p>
+              )}
+            </div>
 
             <div className="flex justify-end gap-2 pt-4">
               <Button

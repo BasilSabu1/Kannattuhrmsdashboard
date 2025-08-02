@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -8,8 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Pagination, PaginationContent, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 import { useToast } from "@/hooks/use-toast";
-import { Download, Filter, Search, Calendar as CalendarIcon, Users, FileText, Clock, CheckCircle, Eye, FolderOpen, Image, File, Loader2, AlertCircle } from "lucide-react";
+import { Download, Filter, Search, Calendar as CalendarIcon, Users, FileText, Clock, CheckCircle, Eye, FolderOpen, Image, File, Loader2, AlertCircle, ZoomIn, ZoomOut, RotateCw, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { API_URLS } from "@/components/apiconfig/api_urls";
@@ -95,7 +96,6 @@ interface ApiResponse {
 
 export function OnboardingDashboard() {
   const [applications, setApplications] = useState<OnboardingApplication[]>([]);
-  const [filteredApplications, setFilteredApplications] = useState<OnboardingApplication[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [departmentFilter, setDepartmentFilter] = useState<string>("all");
@@ -104,21 +104,61 @@ export function OnboardingDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [apiResponse, setApiResponse] = useState<ApiResponse | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [previewDocument, setPreviewDocument] = useState<ApplicationDocument | null>(null);
+  const [imageTransform, setImageTransform] = useState({ zoom: 1, rotation: 0 });
   const { toast } = useToast();
+  const [searchInput, setSearchInput] = useState(""); // For immediate UI updates
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  // Build query parameters for API call
+  const buildQueryParams = () => {
+    const params = new URLSearchParams();
 
-  // Fetch applications from API
+    // Pagination
+    params.append('page', currentPage.toString());
+    params.append('limit', pageSize.toString());
+
+    // Search - only support full_name parameter
+    if (debouncedSearch.trim()) {
+      params.append('full_name', debouncedSearch.trim());
+    }
+
+    if (statusFilter !== 'all') {
+      params.append('status', statusFilter);
+    }
+
+    if (departmentFilter !== 'all') {
+      params.append('branch', departmentFilter);
+    }
+
+    // Fix date parameters to match your API
+    if (dateFrom) {
+      params.append('start_date', format(dateFrom, 'yyyy-MM-dd'));
+    }
+
+    if (dateTo) {
+      params.append('end_date', format(dateTo, 'yyyy-MM-dd'));
+    }
+
+    return params.toString();
+  };
+
+
+
+  // Fetch applications from API with filters
   useEffect(() => {
     const fetchApplications = async () => {
       try {
         setLoading(true);
         setError(null);
-        
-        const response = await axiosInstance.get(API_URLS.USERS.GET_USERS);
-        
+
+        const queryParams = buildQueryParams();
+        const response = await axiosInstance.get(`${API_URLS.USERS.GET_USERS}?${queryParams}`);
+
         setApiResponse(response.data);
         setApplications(response.data.data);
-        setFilteredApplications(response.data.data);
-        
+
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to fetch applications');
         console.error('Error fetching applications:', err);
@@ -128,65 +168,78 @@ export function OnboardingDashboard() {
     };
 
     fetchApplications();
+  }, [currentPage, pageSize, debouncedSearch, statusFilter, departmentFilter, dateFrom, dateTo]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(searchInput);
+    }, 500); // 500ms delay
+
+    return () => clearTimeout(timer);
+  }, [searchInput]);
+
+
+  const handleSearchInput = useCallback((value: string) => {
+    setSearchInput(value);
+    setCurrentPage(1); // Reset to first page when searching
   }, []);
 
-
-  
   const handleSearch = (term: string) => {
     setSearchTerm(term);
-    applyFilters(term, statusFilter, departmentFilter, dateFrom, dateTo);
+    setCurrentPage(1); // Reset to first page when searching
   };
 
-  const handleStatusFilter = (status: string) => {
+  // 5. Update the handleStatusFilter and handleDepartmentFilter with useCallback
+  const handleStatusFilter = useCallback((status: string) => {
     setStatusFilter(status);
-    applyFilters(searchTerm, status, departmentFilter, dateFrom, dateTo);
-  };
+    setCurrentPage(1);
+  }, []);
 
-  const handleDepartmentFilter = (department: string) => {
+  const handleDepartmentFilter = useCallback((department: string) => {
     setDepartmentFilter(department);
-    applyFilters(searchTerm, statusFilter, department, dateFrom, dateTo);
-  };
+    setCurrentPage(1);
+  }, []);
 
-  const handleDateFilter = (from?: Date, to?: Date) => {
+  const handleDateFilter = useCallback((from?: Date, to?: Date) => {
     setDateFrom(from);
     setDateTo(to);
-    applyFilters(searchTerm, statusFilter, departmentFilter, from, to);
+    setCurrentPage(1);
+  }, []);
+
+  const handleRefresh = useCallback(() => {
+    setSearchInput("");
+    setDebouncedSearch("");
+    setStatusFilter("all");
+    setDepartmentFilter("all");
+    setDateFrom(undefined);
+    setDateTo(undefined);
+    setCurrentPage(1);
+  }, []);
+
+  const resetImageTransform = () => {
+    setImageTransform({ zoom: 1, rotation: 0 });
   };
 
-  const applyFilters = (search: string, status: string, department: string, from?: Date, to?: Date) => {
-    let filtered = applications;
-
-    if (search) {
-      filtered = filtered.filter(app => 
-        app.full_name.toLowerCase().includes(search.toLowerCase()) ||
-        app.email.toLowerCase().includes(search.toLowerCase()) ||
-        app.application_id.toLowerCase().includes(search.toLowerCase())
-      );
-    }
-
-    if (status !== "all") {
-      filtered = filtered.filter(app => app.status === status);
-    }
-
-    // Filter by department using education_employment branch
-    if (department !== "all") {
-      filtered = filtered.filter(app => 
-        app.education_employment?.branch === department
-      );
-    }
-
-    if (from && to) {
-      filtered = filtered.filter(app => {
-        const appDate = new Date(app.created_at);
-        return appDate >= from && appDate <= to;
-      });
-    }
-
-    setFilteredApplications(filtered);
+  const handleImageTransform = (action: 'zoomIn' | 'zoomOut' | 'rotate') => {
+    setImageTransform(prev => {
+      switch (action) {
+        case 'zoomIn':
+          return { ...prev, zoom: Math.min(prev.zoom + 0.2, 3) };
+        case 'zoomOut':
+          return { ...prev, zoom: Math.max(prev.zoom - 0.2, 0.5) };
+        case 'rotate':
+          return { ...prev, rotation: (prev.rotation + 90) % 360 };
+        default:
+          return prev;
+      }
+    });
   };
+
+
+
 
   const handleDownload = (downloadFormat: string) => {
-    const dataToDownload = filteredApplications.map(app => ({
+    const dataToDownload = applications.map(app => ({
       'Application ID': app.application_id,
       'Employee Name': app.full_name,
       'Email': app.email,
@@ -206,45 +259,53 @@ export function OnboardingDashboard() {
 
     toast({
       title: `Download Started`,
-      description: `Exporting ${filteredApplications.length} records in Excel format.`,
+      description: `Exporting ${applications.length} records in Excel format.`,
     });
   };
 
   const downloadExcel = (data: any[]) => {
     if (data.length === 0) return;
-    
+
     // Create headers row
     const headers = Object.keys(data[0]);
-    const headerRow = headers.join('\t');
-    
-    // Create data rows with proper formatting
-    const dataRows = data.map(row => 
+    const headerRow = headers.join(',');
+
+    // Create data rows with proper CSV formatting
+    const dataRows = data.map(row =>
       headers.map(header => {
         const value = row[header];
-        // Format dates and numbers properly for Excel
-        if (header === 'Submitted Date' && value !== 'N/A') {
-          return value; // Already formatted as MM/dd/yyyy
+
+        // Handle null/undefined values
+        if (value === null || value === undefined) {
+          return '';
         }
-        if (header === 'Documents Count') {
-          return value.toString();
+
+        // Convert to string and handle commas and quotes
+        const stringValue = String(value);
+
+        // If value contains comma, newline, or quote, wrap in quotes and escape internal quotes
+        if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
+          return `"${stringValue.replace(/"/g, '""')}"`;
         }
-        if (header === 'Mobile' || header === 'Emergency Contact') {
-          // Format phone numbers as text to preserve leading zeros
-          return `"${value}"`;
-        }
-        return value;
-      }).join('\t')
+
+        return stringValue;
+      }).join(',')
     );
-    
+
     // Combine headers and data
-    const excelContent = [headerRow, ...dataRows].join('\n');
-    
+    const csvContent = [headerRow, ...dataRows].join('\n');
+
+    // Add BOM for proper Excel UTF-8 support
+    const BOM = '\uFEFF';
+
     // Create and download the file
-    const blob = new Blob([excelContent], { type: 'application/vnd.ms-excel' });
+    const blob = new Blob([BOM + csvContent], {
+      type: 'text/csv;charset=utf-8;'
+    });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `onboarding-applications-${format(new Date(), 'yyyy-MM-dd')}.xls`;
+    link.download = `onboarding-applications-${format(new Date(), 'yyyy-MM-dd')}.csv`;
     link.click();
     window.URL.revokeObjectURL(url);
   };
@@ -255,7 +316,7 @@ export function OnboardingDashboard() {
     link.download = doc.original_filename;
     link.target = '_blank';
     link.click();
-    
+
     toast({
       title: "Document Downloaded",
       description: `${doc.original_filename} has been downloaded.`,
@@ -278,14 +339,27 @@ export function OnboardingDashboard() {
 
   const getStatusBadge = (status: string) => {
     const variants = {
-      pending: "secondary",
-      approved: "default",
-      rejected: "destructive",
-      "under_review": "outline"
+      pending: "secondary", // Gray color for pending
+      approved: "default", // Green color for approved (using default which is typically green)
+      rejected: "destructive", // Red color for rejected
+      "under_review": "outline" // Blue outline for under review
     } as const;
 
+    // Custom styling for better color distinction
+    const customStyles = {
+      pending: "bg-yellow-100 text-yellow-800 border-yellow-200 hover:bg-yellow-200",
+      approved: "bg-green-100 text-green-800 border-green-200 hover:bg-green-200",
+      rejected: "bg-red-100 text-red-800 border-red-200 hover:bg-red-200",
+      "under_review": "bg-blue-100 text-blue-800 border-blue-200 hover:bg-blue-200"
+    } as const;
+
+    const statusKey = status as keyof typeof variants;
+
     return (
-      <Badge variant={variants[status as keyof typeof variants] || "secondary"}>
+      <Badge
+        variant={variants[statusKey] || "secondary"}
+        className={customStyles[statusKey] || ""}
+      >
         {status.replace("_", " ").toUpperCase()}
       </Badge>
     );
@@ -300,6 +374,125 @@ export function OnboardingDashboard() {
 
   const formatDocumentType = (type: string) => {
     return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const DocumentPreviewModal = () => {
+    if (!previewDocument) return null;
+
+    const isImage = previewDocument.document_type.includes('image') ||
+      ['passport', 'aadhaar_front', 'aadhaar_back', 'voter_id', 'pan', 'cibil_report', 'police_clearance', 'experience', 'pg'].includes(previewDocument.document_type) ||
+      previewDocument.original_filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/);
+
+    return (
+      <Dialog open={!!previewDocument} onOpenChange={() => {
+        setPreviewDocument(null);
+        resetImageTransform();
+      }}>
+        <DialogContent className="max-w-4xl max-h-[90vh] p-0">
+          <DialogHeader className="p-6 pb-0">
+            <div className="flex items-center justify-between">
+              <div>
+                <DialogTitle className="text-lg font-semibold">
+                  {previewDocument.original_filename}
+                </DialogTitle>
+                <DialogDescription className="text-sm text-muted-foreground">
+                  {formatDocumentType(previewDocument.document_type)} •
+                  Uploaded: {format(new Date(previewDocument.uploaded_at), "MMM dd, yyyy")} •
+                  Size: {(previewDocument.file_size / 1024).toFixed(1)} KB
+                </DialogDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                {isImage && (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleImageTransform('zoomOut')}
+                      disabled={imageTransform.zoom <= 0.5}
+                    >
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleImageTransform('zoomIn')}
+                      disabled={imageTransform.zoom >= 3}
+                    >
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleImageTransform('rotate')}
+                    >
+                      <RotateCw className="h-4 w-4" />
+                    </Button>
+                  </>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => downloadDocument(previewDocument)}
+                >
+                  <Download className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 p-6 pt-4 overflow-auto">
+            <div className="flex items-center justify-center min-h-[400px] bg-muted/50 rounded-lg">
+              {isImage ? (
+                <div className="relative overflow-auto max-w-full max-h-[60vh] flex items-center justify-center">
+                  <img
+                    src={previewDocument.image}
+                    alt={previewDocument.original_filename}
+                    className="max-w-full max-h-full object-contain"
+                    style={{
+                      transform: `scale(${imageTransform.zoom}) rotate(${imageTransform.rotation}deg)`,
+                      transformOrigin: 'center',
+                      transition: 'transform 0.2s ease-in-out'
+                    }}
+                    onLoad={(e) => {
+                      console.log('Image loaded successfully');
+                    }}
+                    onError={(e) => {
+                      console.error('Image failed to load:', previewDocument.image);
+                      const target = e.target as HTMLImageElement;
+                      const container = target.parentElement;
+                      if (container) {
+                        container.innerHTML = `
+                          <div class="flex flex-col items-center justify-center p-8 text-muted-foreground">
+                            <svg class="h-12 w-12 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <p class="text-lg font-medium">Image Preview Failed</p>
+                            <p class="text-sm mb-4">Unable to load the image. Click download to view the document.</p>
+                          </div>
+                        `;
+                      }
+                    }}
+                  />
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center p-8 text-muted-foreground">
+                  <FileText className="h-16 w-16 mb-4" />
+                  <p className="text-lg font-medium">Document Preview</p>
+                  <p className="text-sm mb-4">Preview not available for this file type</p>
+                  <Button
+                    onClick={() => downloadDocument(previewDocument)}
+                    className="gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download to View
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
   };
 
   const DocumentsDialog = ({ application }: { application: OnboardingApplication }) => (
@@ -343,26 +536,32 @@ export function OnboardingDashboard() {
                     <Download className="h-4 w-4" />
                   </Button>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  Uploaded: {format(new Date(doc.uploaded_at), "MMM dd, yyyy")}
+                <div className="text-xs text-muted-foreground mb-2">
+                  <div>Uploaded: {format(new Date(doc.uploaded_at), "MMM dd, yyyy")}</div>
+                  <div>Type: {formatDocumentType(doc.document_type)}</div>
+                  <div>Size: {(doc.file_size / 1024).toFixed(1)} KB</div>
                 </div>
-                <div className="text-xs text-muted-foreground">
-                  Type: {formatDocumentType(doc.document_type)}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  Size: {(doc.file_size / 1024).toFixed(1)} KB
-                </div>
-                <div className="mt-2 p-2 bg-muted rounded border-dashed border-2">
-                  <div className="text-xs text-center text-muted-foreground">
-                    {getDocumentIcon(doc.document_type).type === Image ? 'Image Preview Available' : 'Document Available'}
+
+                {/* Updated clickable preview */}
+                <div
+                  className="mt-2 p-2 bg-muted rounded border-dashed border-2 cursor-pointer hover:bg-muted/80 transition-colors"
+                  onClick={() => {
+                    setPreviewDocument(doc);
+                    resetImageTransform();
+                  }}
+                >
+                  <div className="text-xs text-center text-muted-foreground flex items-center justify-center gap-2">
+                    {getDocumentIcon(doc.document_type)}
+                    <span>Click to preview</span>
+                    <Eye className="h-3 w-3" />
                   </div>
                 </div>
               </Card>
             )) || (
-              <div className="col-span-2 text-center py-8 text-muted-foreground">
-                No documents uploaded yet.
-              </div>
-            )}
+                <div className="col-span-2 text-center py-8 text-muted-foreground">
+                  No documents uploaded yet.
+                </div>
+              )}
           </div>
         </div>
       </DialogContent>
@@ -389,7 +588,41 @@ export function OnboardingDashboard() {
     ];
   };
 
+  // Get unique departments from current applications for filter options
   const departments = [...new Set(applications.map(app => app.education_employment?.branch).filter(Boolean))];
+
+  // Pagination functions
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const getPageNumbers = () => {
+    if (!apiResponse) return [];
+
+    const totalPages = apiResponse.pagination.totalPages;
+    const current = apiResponse.pagination.page;
+    const pages = [];
+
+    // Always show first page
+    pages.push(1);
+
+    // Show pages around current page
+    const start = Math.max(2, current - 1);
+    const end = Math.min(totalPages - 1, current + 1);
+
+    if (start > 2) pages.push('...');
+
+    for (let i = start; i <= end; i++) {
+      if (i > 1 && i < totalPages) pages.push(i);
+    }
+
+    if (end < totalPages - 1) pages.push('...');
+
+    // Always show last page if there are more than 1 page
+    if (totalPages > 1) pages.push(totalPages);
+
+    return pages;
+  };
 
   // Loading state
   if (loading) {
@@ -472,10 +705,21 @@ export function OnboardingDashboard() {
         {/* Filters */}
         <Card className="shadow-md">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Filter className="h-5 w-5" />
-              Filters & Search
-            </CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <Filter className="h-5 w-5" />
+                Filters & Search
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleRefresh}
+                className="gap-2"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Refresh
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -483,9 +727,9 @@ export function OnboardingDashboard() {
               <div className="relative">
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
                 <Input
-                  placeholder="Search by name, email, or ID..."
-                  value={searchTerm}
-                  onChange={(e) => handleSearch(e.target.value)}
+                  placeholder="Search by employee name..."
+                  value={searchInput}
+                  onChange={(e) => handleSearchInput(e.target.value)}
                   className="pl-10"
                 />
               </div>
@@ -496,7 +740,7 @@ export function OnboardingDashboard() {
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
                   <SelectItem value="under_review">Under Review</SelectItem>
                   <SelectItem value="approved">Approved</SelectItem>
@@ -560,13 +804,13 @@ export function OnboardingDashboard() {
         <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
-              <CardTitle>Applications ({filteredApplications.length})</CardTitle>
+              <CardTitle>Applications ({applications.length})</CardTitle>
               <CardDescription>Manage employee onboarding applications</CardDescription>
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => handleDownload("excel")} variant="outline" size="sm" disabled={filteredApplications.length === 0}>
+              <Button onClick={() => handleDownload("excel")} variant="outline" size="sm" disabled={applications.length === 0}>
                 <Download className="h-4 w-4 mr-2" />
-                Excel ({filteredApplications.length} records)
+                Excel ({applications.length} records)
               </Button>
             </div>
           </CardHeader>
@@ -587,14 +831,14 @@ export function OnboardingDashboard() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredApplications.length === 0 ? (
+                {applications.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={10} className="text-center py-8 text-muted-foreground">
                       No applications found matching your filters.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  filteredApplications.map((app) => (
+                  applications.map((app) => (
                     <TableRow key={app.uuid}>
                       <TableCell className="font-mono">{app.application_id}</TableCell>
                       <TableCell className="font-medium">{app.full_name}</TableCell>
@@ -621,8 +865,53 @@ export function OnboardingDashboard() {
               </TableBody>
             </Table>
           </CardContent>
+
+          {/* Pagination */}
+          {apiResponse && apiResponse.pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between px-6 py-4 border-t">
+              <div className="text-sm text-muted-foreground">
+                Showing {((apiResponse.pagination.page - 1) * pageSize) + 1} to{" "}
+                {Math.min(apiResponse.pagination.page * pageSize, apiResponse.pagination.total)} of{" "}
+                {apiResponse.pagination.total} results
+              </div>
+              <Pagination>
+                <PaginationContent>
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() => handlePageChange(apiResponse.pagination.page - 1)}
+                      className={apiResponse.pagination.page <= 1 ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+
+                  {getPageNumbers().map((page, index) => (
+                    <PaginationItem key={index}>
+                      {page === '...' ? (
+                        <span className="px-3 py-2">...</span>
+                      ) : (
+                        <PaginationLink
+                          onClick={() => handlePageChange(page as number)}
+                          isActive={apiResponse.pagination.page === page}
+                          className="cursor-pointer"
+                        >
+                          {page}
+                        </PaginationLink>
+                      )}
+                    </PaginationItem>
+                  ))}
+
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() => handlePageChange(apiResponse.pagination.page + 1)}
+                      className={apiResponse.pagination.page >= apiResponse.pagination.totalPages ? "pointer-events-none opacity-50" : "cursor-pointer"}
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+            </div>
+          )}
         </Card>
       </div>
+      <DocumentPreviewModal />
     </div>
   );
 }

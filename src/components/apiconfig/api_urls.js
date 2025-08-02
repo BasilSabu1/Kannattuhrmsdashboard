@@ -2,13 +2,14 @@
 export const API_URLS = {
     LOGIN: {
       POST_LOGIN: "api/login/",
-     
+      POST_FORGOT_PASSWORD: "api/forgot-password/",
       POST_REGISTRATION: "api/register/",
   
     },
 
     USERS: {
       GET_USERS: "api/users/",
+      PATCH_USER_BY_UUID: (uuid) => `api/users/${uuid}/status/`,
     },
 
     ROLES: {

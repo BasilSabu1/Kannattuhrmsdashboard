@@ -1,5 +1,4 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AlertCircle, LogIn } from "lucide-react";
@@ -10,9 +9,14 @@ interface TokenExpiredAlertProps {
 }
 
 const TokenExpiredAlert = ({ isVisible, onClose }: TokenExpiredAlertProps) => {
-  const navigate = useNavigate();
+  const [countdown, setCountdown] = useState(60); // 60 seconds = 1 minute
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   const handleLoginRedirect = () => {
+    if (isRedirecting) return; // Prevent multiple redirects
+    
+    setIsRedirecting(true);
+    
     // Clear all auth data
     localStorage.removeItem("access_token");
     localStorage.removeItem("refresh_token");
@@ -21,23 +25,51 @@ const TokenExpiredAlert = ({ isVisible, onClose }: TokenExpiredAlertProps) => {
     localStorage.removeItem("admin_data");
     localStorage.removeItem("hr_data");
     
-    // Navigate to login page
-    navigate("/login", { replace: true });
+    // Navigate to login page using window.location
+    // This works regardless of router context
+    window.location.href = "/login";
     onClose();
   };
 
-  // Auto-redirect after 5 seconds
+  // Auto-redirect after 1 minute with countdown
   useEffect(() => {
-    if (isVisible) {
-      const timer = setTimeout(() => {
-        handleLoginRedirect();
-      }, 5000);
+    if (isVisible && !isRedirecting) {
+      // Reset countdown when alert becomes visible
+      setCountdown(60);
+      setIsRedirecting(false);
+      
+      const countdownTimer = setInterval(() => {
+        setCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownTimer);
+            handleLoginRedirect();
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
 
-      return () => clearTimeout(timer);
+      return () => {
+        clearInterval(countdownTimer);
+      };
+    }
+  }, [isVisible]);
+
+  // Reset state when alert is hidden
+  useEffect(() => {
+    if (!isVisible) {
+      setCountdown(60);
+      setIsRedirecting(false);
     }
   }, [isVisible]);
 
   if (!isVisible) return null;
+
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -56,21 +88,23 @@ const TokenExpiredAlert = ({ isVisible, onClose }: TokenExpiredAlertProps) => {
           <Button 
             onClick={handleLoginRedirect}
             className="flex-1 bg-red-600 hover:bg-red-700 text-white"
+            disabled={isRedirecting}
           >
             <LogIn className="h-4 w-4 mr-2" />
-            Sign In Again
+            {isRedirecting ? "Redirecting..." : "Sign In Again"}
           </Button>
           <Button 
             variant="outline" 
             onClick={onClose}
             className="flex-1"
+            disabled={isRedirecting}
           >
             Close
           </Button>
         </div>
         
         <p className="text-xs text-muted-foreground mt-4 text-center">
-          You will be automatically redirected in 5 seconds...
+          You will be automatically redirected in {formatTime(countdown)}...
         </p>
       </div>
     </div>

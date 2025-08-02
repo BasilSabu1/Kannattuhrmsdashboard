@@ -6,15 +6,9 @@ import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/hooks/use-auth";
 import { 
   Users, 
-  FileText, 
-  Settings, 
-  BarChart3, 
   LogOut, 
   Menu,
-  X,
   User,
-  Building,
-  Calendar,
   Shield
 } from "lucide-react";
 import { OnboardingDashboard } from "./OnboardingDashboard";
@@ -36,10 +30,6 @@ const AdminDashboard = () => {
   const sidebarItems: SidebarItem[] = [
     { id: "onboarding", label: "Onboarding", icon: Users },
     { id: "hr-management", label: "HR Management", icon: User },
-    { id: "departments", label: "Departments", icon: Building },
-    { id: "reports", label: "Reports", icon: BarChart3 },
-    { id: "calendar", label: "Calendar", icon: Calendar },
-    { id: "settings", label: "Settings", icon: Settings },
   ];
 
   const handleLogout = () => {
@@ -53,50 +43,6 @@ const AdminDashboard = () => {
         return <OnboardingDashboard />;
       case "hr-management":
         return <HRManagement />;
-      case "departments":
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Department Management</h2>
-            <Card>
-              <CardContent className="p-6">
-                <p className="text-muted-foreground">Department management features coming soon...</p>
-              </CardContent>
-            </Card>
-          </div>
-        );
-      case "reports":
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Reports & Analytics</h2>
-            <Card>
-              <CardContent className="p-6">
-                <p className="text-muted-foreground">Reports and analytics features coming soon...</p>
-              </CardContent>
-            </Card>
-          </div>
-        );
-      case "calendar":
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Calendar</h2>
-            <Card>
-              <CardContent className="p-6">
-                <p className="text-muted-foreground">Calendar features coming soon...</p>
-              </CardContent>
-            </Card>
-          </div>
-        );
-      case "settings":
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Settings</h2>
-            <Card>
-              <CardContent className="p-6">
-                <p className="text-muted-foreground">Settings features coming soon...</p>
-              </CardContent>
-            </Card>
-          </div>
-        );
       default:
         return <OnboardingDashboard />;
     }

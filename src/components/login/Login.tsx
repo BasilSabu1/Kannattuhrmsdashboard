@@ -60,6 +60,20 @@ const Login = () => {
     const [showPassword, setShowPassword] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+    
+    // Forgot password state
+    const [showForgotPassword, setShowForgotPassword] = useState(false);
+    const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
+    const [newPassword, setNewPassword] = useState("");
+    const [confirmPassword, setConfirmPassword] = useState("");
+    const [showNewPassword, setShowNewPassword] = useState(false);
+    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+    const [isForgotPasswordLoading, setIsForgotPasswordLoading] = useState(false);
+    const [forgotPasswordErrors, setForgotPasswordErrors] = useState<{ 
+        email?: string; 
+        newPassword?: string; 
+        confirmPassword?: string 
+    }>({});
 
     const navigate = useNavigate();
     const location = useLocation();
@@ -92,6 +106,32 @@ const Login = () => {
         }
 
         setErrors(newErrors);
+        return Object.keys(newErrors).length === 0;
+    };
+
+    // Forgot password form validation
+    const validateForgotPasswordForm = (): boolean => {
+        const newErrors: { email?: string; newPassword?: string; confirmPassword?: string } = {};
+
+        if (!forgotPasswordEmail.trim()) {
+            newErrors.email = "Email is required";
+        } else if (!validateEmail(forgotPasswordEmail)) {
+            newErrors.email = "Please enter a valid email address";
+        }
+
+        if (!newPassword.trim()) {
+            newErrors.newPassword = "New password is required";
+        } else if (newPassword.length < 6) {
+            newErrors.newPassword = "Password must be at least 6 characters long";
+        }
+
+        if (!confirmPassword.trim()) {
+            newErrors.confirmPassword = "Please confirm your password";
+        } else if (newPassword !== confirmPassword) {
+            newErrors.confirmPassword = "Passwords do not match";
+        }
+
+        setForgotPasswordErrors(newErrors);
         return Object.keys(newErrors).length === 0;
     };
 
@@ -130,7 +170,7 @@ const Login = () => {
             toast({
                 title: "Validation Error",
                 description: "Please fix the errors below and try again",
-                variant: "destructive",
+                variant: "warning", // Change from destructive to warning
             });
             return;
         }
@@ -229,7 +269,9 @@ console.log(responseData);
             toast({
                 title: "Login Successful",
                 description: `Welcome back!`,
+                variant: "success", // Add this line
             });
+            
 
             // Get the appropriate dashboard route
             const dashboardRoute = getDashboardRoute(user.role);
@@ -304,6 +346,98 @@ console.log(responseData);
         }
     };
 
+    // Handle forgot password submission
+    const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+
+        // Clear previous errors
+        setForgotPasswordErrors({});
+
+        // Validate form
+        if (!validateForgotPasswordForm()) {
+            toast({
+                title: "Validation Error",
+                description: "Please fix the errors below and try again",
+                variant: "warning", // Change from destructive to warning
+            });
+            return;
+        }
+
+        setIsForgotPasswordLoading(true);
+
+        try {
+            const payload = {
+                email: forgotPasswordEmail.trim(),
+                new_password: newPassword,
+            };
+
+            console.log("Sending forgot password request with payload:", payload);
+            console.log("API URL:", API_URLS.LOGIN.POST_FORGOT_PASSWORD);
+
+            const response = await axiosInstance.post(
+                API_URLS.LOGIN.POST_FORGOT_PASSWORD,
+                payload
+            );
+            
+            console.log("Forgot password response:", response);
+
+            toast({
+                title: "Password Reset Successful",
+                description: "Your password has been reset successfully. You can now login with your new password.",
+                variant: "success",
+            });
+
+            // Reset form and go back to login
+            setShowForgotPassword(false);
+            setForgotPasswordEmail("");
+            setNewPassword("");
+            setConfirmPassword("");
+            setForgotPasswordErrors({});
+
+        } catch (error: any) {
+            console.error("Forgot password error:", error);
+
+            let errorMessage = "An unexpected error occurred. Please try again.";
+            let errorTitle = "Password Reset Failed";
+
+            if (error.response) {
+                const { status, data } = error.response;
+
+                switch (status) {
+                    case 400:
+                        errorTitle = "Invalid Request";
+                        errorMessage = data?.message || "Please check your email and new password";
+                        break;
+                    case 404:
+                        errorTitle = "Account Not Found";
+                        errorMessage = data?.message || "No account found with this email address";
+                        break;
+                    case 422:
+                        errorTitle = "Validation Error";
+                        errorMessage = data?.message || "Please check your input and try again";
+                        break;
+                    case 500:
+                        errorTitle = "Server Error";
+                        errorMessage = data?.message || "Server is experiencing issues. Please try again later";
+                        break;
+                    default:
+                        errorMessage = data?.message || errorMessage;
+                }
+            } else if (error.request) {
+                errorTitle = "Connection Error";
+                errorMessage = "Unable to connect to the server. Please check your internet connection";
+            }
+
+            toast({
+                title: errorTitle,
+                description: errorMessage,
+                variant: "destructive",
+            });
+        } finally {
+            setIsForgotPasswordLoading(false);
+        }
+    };
+
     // Clear field errors on input change
     const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setEmail(e.target.value);
@@ -319,84 +453,264 @@ console.log(responseData);
         }
     };
 
+    // Forgot password form handlers
+    const handleForgotPasswordEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setForgotPasswordEmail(e.target.value);
+        if (forgotPasswordErrors.email) {
+            setForgotPasswordErrors(prev => ({ ...prev, email: undefined }));
+        }
+    };
+
+    const handleNewPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setNewPassword(e.target.value);
+        if (forgotPasswordErrors.newPassword) {
+            setForgotPasswordErrors(prev => ({ ...prev, newPassword: undefined }));
+        }
+    };
+
+    const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        setConfirmPassword(e.target.value);
+        if (forgotPasswordErrors.confirmPassword) {
+            setForgotPasswordErrors(prev => ({ ...prev, confirmPassword: undefined }));
+        }
+    };
+
+    // Handle forgot password button click
+    const handleForgotPasswordClick = () => {
+        setShowForgotPassword(true);
+        // Pre-fill email if user had entered it on login form
+        if (email.trim()) {
+            setForgotPasswordEmail(email.trim());
+        }
+    };
+
+    // Handle back to login button click
+    const handleBackToLogin = () => {
+        setShowForgotPassword(false);
+        setForgotPasswordEmail("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setForgotPasswordErrors({});
+    };
+
     return (
         <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 flex items-center justify-center p-4">
             <Card className="w-full max-w-md shadow-lg">
-                <CardHeader className="text-center">
-                    <div className="mx-auto mb-4 w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                        <Users className="h-6 w-6 text-primary" />
-                    </div>
-                    <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-                    <CardDescription>
-                        Sign in to your HRMS account
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
-                    <form onSubmit={handleSubmit} className="space-y-4">
-                        <div className="space-y-2">
-                            <label htmlFor="email" className="text-sm font-medium">
-                                Email
-                            </label>
-                            <div className="relative">
-                                <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    id="email"
-                                    type="email"
-                                    placeholder="Enter your email"
-                                    value={email}
-                                    onChange={handleEmailChange}
-                                    className={`pl-10 ${errors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                                    required
-                                />
+                {!showForgotPassword ? (
+                    // Login Form
+                    <>
+                        <CardHeader className="text-center">
+                            <div className="mx-auto mb-4 w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                                <Users className="h-6 w-6 text-primary" />
                             </div>
-                            {errors.email && (
-                                <p className="text-sm text-red-500 mt-1">{errors.email}</p>
-                            )}
-                        </div>
-
-                        <div className="space-y-2">
-                            <label htmlFor="password" className="text-sm font-medium">
-                                Password
-                            </label>
-                            <div className="relative">
-                                <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                <Input
-                                    id="password"
-                                    type={showPassword ? "text" : "password"}
-                                    placeholder="Enter your password"
-                                    value={password}
-                                    onChange={handlePasswordChange}
-                                    className={`pl-10 pr-10 ${errors.password ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                                    required
-                                />
-                                <Button
-                                    type="button"
-                                    variant="ghost"
-                                    size="sm"
-                                    className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                    onClick={() => setShowPassword(!showPassword)}
-                                >
-                                    {showPassword ? (
-                                        <EyeOff className="h-4 w-4" />
-                                    ) : (
-                                        <Eye className="h-4 w-4" />
+                            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+                            <CardDescription>
+                                Sign in to your HRMS account
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form onSubmit={handleSubmit} className="space-y-4">
+                                <div className="space-y-2">
+                                    <label htmlFor="email" className="text-sm font-medium">
+                                        Email
+                                    </label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="email"
+                                            type="email"
+                                            placeholder="Enter your email"
+                                            value={email}
+                                            onChange={handleEmailChange}
+                                            className={`pl-10 ${errors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                                            required
+                                        />
+                                    </div>
+                                    {errors.email && (
+                                        <p className="text-sm text-red-500 mt-1">{errors.email}</p>
                                     )}
-                                </Button>
-                            </div>
-                            {errors.password && (
-                                <p className="text-sm text-red-500 mt-1">{errors.password}</p>
-                            )}
-                        </div>
+                                </div>
 
-                        <Button
-                            type="submit"
-                            className="w-full"
-                            disabled={isLoading}
-                        >
-                            {isLoading ? "Signing in..." : "Sign In"}
-                        </Button>
-                    </form>
-                </CardContent>
+                                <div className="space-y-2">
+                                    <label htmlFor="password" className="text-sm font-medium">
+                                        Password
+                                    </label>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="password"
+                                            type={showPassword ? "text" : "password"}
+                                            placeholder="Enter your password"
+                                            value={password}
+                                            onChange={handlePasswordChange}
+                                            className={`pl-10 pr-10 ${errors.password ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                                            required
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                            onClick={() => setShowPassword(!showPassword)}
+                                        >
+                                            {showPassword ? (
+                                                <EyeOff className="h-4 w-4" />
+                                            ) : (
+                                                <Eye className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                    {errors.password && (
+                                        <p className="text-sm text-red-500 mt-1">{errors.password}</p>
+                                    )}
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    className="w-full"
+                                    disabled={isLoading}
+                                >
+                                    {isLoading ? "Signing in..." : "Sign In"}
+                                </Button>
+
+                                <div className="text-center">
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        className="text-sm text-muted-foreground hover:text-primary"
+                                        onClick={handleForgotPasswordClick}
+                                    >
+                                        Forgot Password?
+                                    </Button>
+                                </div>
+                            </form>
+                        </CardContent>
+                    </>
+                ) : (
+                    // Forgot Password Form
+                    <>
+                        <CardHeader className="text-center">
+                            <div className="mx-auto mb-4 w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                                <Lock className="h-6 w-6 text-primary" />
+                            </div>
+                            <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
+                            <CardDescription>
+                                Enter your email and new password to reset your account
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                                <div className="space-y-2">
+                                    <label htmlFor="forgot-email" className="text-sm font-medium">
+                                        Email
+                                    </label>
+                                    <div className="relative">
+                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="forgot-email"
+                                            type="email"
+                                            placeholder="Enter your email"
+                                            value={forgotPasswordEmail}
+                                            onChange={handleForgotPasswordEmailChange}
+                                            className={`pl-10 ${forgotPasswordErrors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                                            required
+                                        />
+                                    </div>
+                                    {forgotPasswordErrors.email && (
+                                        <p className="text-sm text-red-500 mt-1">{forgotPasswordErrors.email}</p>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label htmlFor="new-password" className="text-sm font-medium">
+                                        New Password
+                                    </label>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="new-password"
+                                            type={showNewPassword ? "text" : "password"}
+                                            placeholder="Enter new password"
+                                            value={newPassword}
+                                            onChange={handleNewPasswordChange}
+                                            className={`pl-10 pr-10 ${forgotPasswordErrors.newPassword ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                                            required
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                            onClick={() => setShowNewPassword(!showNewPassword)}
+                                        >
+                                            {showNewPassword ? (
+                                                <EyeOff className="h-4 w-4" />
+                                            ) : (
+                                                <Eye className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                    {forgotPasswordErrors.newPassword && (
+                                        <p className="text-sm text-red-500 mt-1">{forgotPasswordErrors.newPassword}</p>
+                                    )}
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label htmlFor="confirm-password" className="text-sm font-medium">
+                                        Confirm Password
+                                    </label>
+                                    <div className="relative">
+                                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            id="confirm-password"
+                                            type={showConfirmPassword ? "text" : "password"}
+                                            placeholder="Confirm new password"
+                                            value={confirmPassword}
+                                            onChange={handleConfirmPasswordChange}
+                                            className={`pl-10 pr-10 ${forgotPasswordErrors.confirmPassword ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
+                                            required
+                                        />
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        >
+                                            {showConfirmPassword ? (
+                                                <EyeOff className="h-4 w-4" />
+                                            ) : (
+                                                <Eye className="h-4 w-4" />
+                                            )}
+                                        </Button>
+                                    </div>
+                                    {forgotPasswordErrors.confirmPassword && (
+                                        <p className="text-sm text-red-500 mt-1">{forgotPasswordErrors.confirmPassword}</p>
+                                    )}
+                                </div>
+
+                                <Button
+                                    type="submit"
+                                    className="w-full"
+                                    disabled={isForgotPasswordLoading}
+                                >
+                                    {isForgotPasswordLoading ? "Resetting Password..." : "Reset Password"}
+                                </Button>
+
+                                <div className="text-center">
+                                    <Button
+                                        type="button"
+                                        variant="link"
+                                        className="text-sm text-muted-foreground hover:text-primary"
+                                        onClick={handleBackToLogin}
+                                    >
+                                        Back to Login
+                                    </Button>
+                                </div>
+                            </form>
+                        </CardContent>
+                    </>
+                )}
             </Card>
         </div>
     );

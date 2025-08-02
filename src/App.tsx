@@ -22,11 +22,11 @@ const AppContent = () => {
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <TokenExpiredAlert 
-        isVisible={showTokenExpiredAlert} 
-        onClose={() => setShowTokenExpiredAlert(false)} 
-      />
       <BrowserRouter>
+        <TokenExpiredAlert 
+          isVisible={showTokenExpiredAlert} 
+          onClose={() => setShowTokenExpiredAlert(false)} 
+        />
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/login" element={<LoginPage />} />
