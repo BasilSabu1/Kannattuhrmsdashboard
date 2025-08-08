@@ -158,7 +158,6 @@
 
 // export default AdminDashboard;
 
-
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -203,9 +202,13 @@ const AdminDashboard = () => {
       case 'hr-management':
         return <HRManagement />;
       case 'offboarding':
-        return <OffboardingDashboard />;
-        case 'exit-request':
-          return <ExitRequest role='admin' />;
+        return (
+          <OffboardingDashboard
+            onViewMoreClick={() => setActiveSection('exit-request')}
+          />
+        );
+      case 'exit-request':
+        return <ExitRequest role="admin" />;
       default:
         return <OnboardingDashboard />;
     }

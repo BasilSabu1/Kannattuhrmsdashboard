@@ -470,14 +470,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Eye, Trash2 } from 'lucide-react';
+import { Eye, Trash2, AlertCircle, Loader2 } from 'lucide-react';
 
 import { Search } from 'lucide-react';
 import axiosInstance from '@/components/apiconfig/axios';
 import { API_URLS } from '@/components/apiconfig/api_urls';
-// import { error } from 'console';
-
-// import { ToastContainer, toast } from 'react-toastify';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 
 interface ExitRequestProps {
   role: 'hr' | 'admin';
@@ -496,46 +501,104 @@ const statusText = {
   rejected: 'Rejected',
 };
 
+interface Resignation {
+  uuid: string;
+  employee_name: string;
+  employee_id: string;
+  department: string;
+  designation: string;
+  resignation_date: string;
+  last_working_date: string;
+  notice_period: number;
+  status: 'pending' | 'approved' | 'rejected';
+}
+
+interface ApiResponse {
+  data: Resignation[];
+  pagination: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  };
+}
+
 function ExitRequest({ role }: ExitRequestProps) {
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [resignation, setResignation] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState<
+    'all' | 'pending' | 'approved' | 'rejected'
+  >('all');
+  const [resignation, setResignation] = useState<Resignation[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<String | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   const getResignation = async () => {
-    setLoading(true);
     try {
-      const res = await axiosInstance.get(
-        API_URLS.RESIGNATION.GET_RESIGNATIONS
+      setLoading(true);
+      setError(null);
+      const params = new URLSearchParams();
+      params.append('page', currentPage.toString());
+      params.append('limit', pageSize.toString());
+      if (search.trim()) {
+        params.append('search', search.trim()); // Adjust to your API param if different
+      }
+      if (statusFilter !== 'all') {
+        params.append('status', statusFilter);
+      }
+      const res = await axiosInstance.get<ApiResponse>(
+        `${API_URLS.RESIGNATION.GET_RESIGNATIONS}?${params.toString()}`
       );
       setResignation(res.data.data || []);
+      setTotalPages(res.data.pagination.totalPages || 1);
+      setTotalItems(res.data.pagination.total || 0);
     } catch (error) {
       console.error('Error fetching resignation');
+      setError('Failed to load exit requests');
       setResignation([]);
+      setTotalPages(1);
+      setTotalItems(0);
+    } finally {
+      setLoading(false);
     }
-    setLoading(true);
   };
 
   useEffect(() => {
     getResignation();
-  }, []);
+  }, [currentPage, search, statusFilter]);
 
-  const handleDeleteResignation = async (uuid: String) => {
+  const handleDeleteResignation = async (uuid: string) => {
+    if (
+      !window.confirm(
+        'Are you sure you want to delete this resignation request?'
+      )
+    ) {
+      return;
+    }
     try {
-      const res = await axiosInstance.delete(
+      await axiosInstance.delete(
         API_URLS.RESIGNATION.DELETE_RESIGNATION_BY_UUID(uuid)
       );
       alert('Resignation deleted successfully');
-      getResignation();
+      // If current page ends up empty after deletion, go to previous page if possible
+      if (resignation.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        getResignation();
+      }
     } catch (error) {
-      console.error('Deleting resignatin error', error);
+      console.error('Deleting resignation error', error);
+      alert('Failed to delete resignation');
     }
   };
 
   const updateresignationStatus = async (
-    uuid: String,
-    newStatus: String,
-    prevStatus: String
+    uuid: string,
+    newStatus: 'pending' | 'approved' | 'rejected',
+    prevStatus: 'pending' | 'approved' | 'rejected'
   ) => {
     setResignation(prev =>
       prev.map(item =>
@@ -548,9 +611,9 @@ function ExitRequest({ role }: ExitRequestProps) {
         { status: newStatus }
       );
       await getResignation();
-      alert('Succesfully status updated');
+      alert('Successfully updated status');
     } catch (error) {
-      console.error('Failing update status', error);
+      console.error('Failed to update status', error);
       alert('Failed to update status');
       setResignation(prev =>
         prev.map(item =>
@@ -568,6 +631,64 @@ function ExitRequest({ role }: ExitRequestProps) {
     const matchesStatus = statusFilter === 'all' || req.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
+
+  const getPageNumbers = () => {
+    const pages = [];
+    const total = totalPages;
+    const current = currentPage;
+
+    pages.push(1);
+
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+
+    if (start > 2) pages.push('...');
+    for (let i = start; i <= end; i++) {
+      if (i > 1 && i < total) pages.push(i);
+    }
+    if (end < total - 1) pages.push('...');
+
+    if (total > 1) pages.push(total);
+
+    return pages;
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
+        <div className="max-w-7xl mx-auto">
+          <Card className="shadow-lg">
+            <CardContent className="p-12">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="text-lg font-medium">Loading exit requests...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
+        <div className="max-w-7xl mx-auto">
+          <Card className="shadow-lg">
+            <CardContent className="p-12">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <AlertCircle className="h-8 w-8 text-destructive" />
+                <p className="text-lg font-medium text-destructive">
+                  Error loading exit requests
+                </p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button onClick={getResignation}>Retry</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -589,12 +710,21 @@ function ExitRequest({ role }: ExitRequestProps) {
                 <Input
                   placeholder="Search by name, ID, or department..."
                   value={search}
-                  onChange={e => setSearch(e.target.value)}
+                  onChange={e => {
+                    setSearch(e.target.value);
+                    setCurrentPage(1); // Reset to first page on search
+                  }}
                   className="pl-10"
                 />
               </div>
               <div className="w-full md:w-48">
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <Select
+                  value={statusFilter}
+                  onValueChange={value => {
+                    setStatusFilter(value as any);
+                    setCurrentPage(1); // Reset page on filter change
+                  }}
+                >
                   <SelectTrigger>
                     <SelectValue placeholder="All Status" />
                   </SelectTrigger>
@@ -612,7 +742,7 @@ function ExitRequest({ role }: ExitRequestProps) {
           {/* Requests Table Card */}
           <Card>
             <CardHeader>
-              <CardTitle>Exit Requests ({filteredRequests.length})</CardTitle>
+              <CardTitle>Exit Requests ({totalItems})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <div className="rounded-md border border-border overflow-x-auto">
@@ -679,12 +809,12 @@ function ExitRequest({ role }: ExitRequestProps) {
                               <Select
                                 value={req.status}
                                 onValueChange={value =>
-                                  updateresignationStatus(
-                                    req.uuid,
-                                    value,
-                                    req.status
-                                  )
-                                }
+                                    updateresignationStatus(
+                                      req.uuid,
+                                      value as 'pending' | 'approved' | 'rejected',
+                                      req.status
+                                    )
+                                  }
                               >
                                 <SelectTrigger
                                   className={`w-28 cursor-pointer rounded-md border px-2 py-1 text-center font-semibold ${
@@ -734,6 +864,49 @@ function ExitRequest({ role }: ExitRequestProps) {
                 </Table>
               </div>
             </CardContent>
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between px-6 py-4 border-t">
+                <div className="text-sm text-muted-foreground">
+                  Showing {(currentPage - 1) * pageSize + 1} to{' '}
+                  {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
+                </div>
+                <Pagination>
+                  <PaginationContent>
+                    <PaginationItem>
+                      <PaginationPrevious
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        className={currentPage <= 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                      />
+                    </PaginationItem>
+
+                    {getPageNumbers().map((page, index) =>
+                      page === '...' ? (
+                        <PaginationItem key={index}>
+                          <span className="px-3 py-2">...</span>
+                        </PaginationItem>
+                      ) : (
+                        <PaginationItem key={index}>
+                          <PaginationLink
+                            onClick={() => setCurrentPage(page as number)}
+                            isActive={currentPage === page}
+                            className="cursor-pointer"
+                          >
+                            {page}
+                          </PaginationLink>
+                        </PaginationItem>
+                      )
+                    )}
+
+                    <PaginationItem>
+                      <PaginationNext
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                      />
+                    </PaginationItem>
+                  </PaginationContent>
+                </Pagination>
+              </div>
+            )}
           </Card>
         </div>
       </div>
