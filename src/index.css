@@ -46,11 +46,19 @@
     --hr-primary-light: 214 100% 97%;
     --hr-secondary: 215 25% 15%;
     --hr-accent: 38 92% 50%;
-    
+
     /* Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(214 85% 45%), hsl(214 85% 38%));
+    --gradient-primary: linear-gradient(
+      135deg,
+      hsl(214 85% 45%),
+      hsl(214 85% 38%)
+    );
     --gradient-card: linear-gradient(145deg, hsl(0 0% 100%), hsl(210 40% 98%));
-    --gradient-accent: linear-gradient(135deg, hsl(214 100% 97%), hsl(210 40% 96%));
+    --gradient-accent: linear-gradient(
+      135deg,
+      hsl(214 100% 97%),
+      hsl(210 40% 96%)
+    );
 
     /* Shadows */
     --shadow-sm: 0 1px 3px 0 hsl(214 85% 45% / 0.1);
@@ -124,4 +132,15 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+html {
+  overflow: -moz-scrollbars-none; /* Firefox */
+  -ms-overflow-style: none; /* IE */
+  scrollbar-width: none; /* Firefox */
+}
+
+html::-webkit-scrollbar {
+  width: 0px;
+  background: transparent; /* Chrome/Safari/Webkit */
 }

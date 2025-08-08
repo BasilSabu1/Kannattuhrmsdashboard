@@ -6,8 +6,17 @@ import {
   CardTitle,
 } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '../ui/button';
 
-import { CheckCircle, Clock, Users, XCircle, FileText } from 'lucide-react';
+import {
+  CheckCircle,
+  Clock,
+  Users,
+  XCircle,
+  FileText,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react';
 
 import axiosInstance from '@/components/apiconfig/axios';
 import { API_URLS } from '@/components/apiconfig/api_urls';
@@ -22,14 +31,30 @@ interface ExitRequest {
   noticeTotal?: number;
 }
 
-export function OffboardingDashboard() {
+interface OffboardingDashboardProps {
+  onViewMoreClick?: () => void;
+}
+
+export function OffboardingDashboard({
+  onViewMoreClick,
+}: OffboardingDashboardProps) {
   const [resignation, setResignation] = useState([]);
   const [statusCounts, setStatusCounts] = useState({
     pending: 0,
     approved: 0,
     rejected: 0,
   });
-  const recentRequests = resignation;
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<String | null>(null);
+
+  const recentRequests = resignation
+    .sort((a, b) => {
+      const dateA = new Date(a.created_at || 0);
+      const dateB = new Date(b.created_at || 0);
+      return dateB.getTime() - dateA.getTime(); // Latest first (descending order)
+    })
+    .slice(0, 5);
+  //   const recentRequests = resignation;
 
   // For the "Notice Period Tracker", get the first approved request with notice
   const inNotice = recentRequests.find(
@@ -38,6 +63,8 @@ export function OffboardingDashboard() {
 
   const getResignation = async () => {
     try {
+      setLoading(true);
+      setError(null);
       const res = await axiosInstance.get(
         API_URLS.RESIGNATION.GET_RESIGNATIONS
       );
@@ -49,6 +76,8 @@ export function OffboardingDashboard() {
       });
     } catch (error) {
       console.error('Error fetching resignation', error);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -88,8 +117,46 @@ export function OffboardingDashboard() {
       color: 'bg-red-500',
     },
   ];
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
+        <div className="max-w-7xl mx-auto">
+          <Card className="shadow-lg">
+            <CardContent className="p-12">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <Loader2 className="h-8 w-8 animate-spin" />
+                <p className="text-lg font-medium">Loading exit requests...</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
+        <div className="max-w-7xl mx-auto">
+          <Card className="shadow-lg">
+            <CardContent className="p-12">
+              <div className="flex flex-col items-center justify-center space-y-4">
+                <AlertCircle className="h-8 w-8 text-destructive" />
+                <p className="text-lg font-medium text-destructive">
+                  Error loading exit requests
+                </p>
+                <p className="text-sm text-muted-foreground">{error}</p>
+                <Button onClick={getResignation}>Retry</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
+    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6 ">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <Card className="shadow-lg">
@@ -141,7 +208,17 @@ export function OffboardingDashboard() {
           {/* Recent Exit Requests */}
           <Card className="shadow-md">
             <CardHeader>
-              <CardTitle>Recent Exit Requests</CardTitle>
+              <div className="flex items-center justify-between">
+                <CardTitle>Recent Exit Requests</CardTitle>
+                <p
+                  onClick={() => {
+                    if (onViewMoreClick) onViewMoreClick();
+                  }}
+                  className="underline text-blue-500 cursor-pointer hover:text-blue-700 transition-all duration-300 "
+                >
+                  View more
+                </p>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="flex flex-col gap-4">
