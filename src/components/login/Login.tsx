@@ -1,719 +1,800 @@
-import { useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
-import { Eye, EyeOff, Lock, Mail, Users } from "lucide-react";
-import axiosInstance from "@/components/apiconfig/axios";
-import { API_URLS } from "@/components/apiconfig/api_urls";
+import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { Eye, EyeOff, Lock, Mail, Users } from 'lucide-react';
+import axiosInstance from '@/components/apiconfig/axios';
+import { API_URLS } from '@/components/apiconfig/api_urls';
 
 interface LoginResponse {
-    // Flexible token field names to handle different API responses
-    access?: string;
-    access_token?: string;
-    token?: string;
-    refresh?: string;
-    refresh_token?: string;
-         user?: {
-         id?: number;
-         email?: string;
-         role: string | number; // Handle both string and number roles
-         hr?: number;
-         name?: string;
-         contact?: string;
-         address?: string;
-         status?: string;
-         created_date?: string;
-         created_by?: string;
-         password_display?: string;
-     };
-     user_data?: {
-         id?: number;
-         email?: string;
-         role: string | number; // Handle both string and number roles
-         hr?: number;
-         name?: string;
-         contact?: string;
-         address?: string;
-         status?: string;
-         created_date?: string;
-         created_by?: string;
-         password_display?: string;
-     };
-    // Admin specific data
-    admin_data?: {
-        permissions: string[];
-        department_access: string[];
-    };
-    // HR specific data
-    hr_data?: {
-        employee_count: number;
-        department: string;
-    };
+  // Flexible token field names to handle different API responses
+  access?: string;
+  access_token?: string;
+  token?: string;
+  refresh?: string;
+  refresh_token?: string;
+  user?: {
+    id?: number;
+    email?: string;
+    role: string | number; // Handle both string and number roles
+    hr?: number;
+    name?: string;
+    contact?: string;
+    address?: string;
+    status?: string;
+    created_date?: string;
+    created_by?: string;
+    password_display?: string;
+  };
+  user_data?: {
+    id?: number;
+    email?: string;
+    role: string | number; // Handle both string and number roles
+    hr?: number;
+    name?: string;
+    contact?: string;
+    address?: string;
+    status?: string;
+    created_date?: string;
+    created_by?: string;
+    password_display?: string;
+  };
+  // Admin specific data
+  admin_data?: {
+    permissions: string[];
+    department_access: string[];
+  };
+  // HR specific data
+  hr_data?: {
+    employee_count: number;
+    department: string;
+  };
 }
 
 const Login = () => {
-    const [email, setEmail] = useState("");
-    const [password, setPassword] = useState("");
-    const [showPassword, setShowPassword] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
-    
-    // Forgot password state
-    const [showForgotPassword, setShowForgotPassword] = useState(false);
-    const [forgotPasswordEmail, setForgotPasswordEmail] = useState("");
-    const [newPassword, setNewPassword] = useState("");
-    const [confirmPassword, setConfirmPassword] = useState("");
-    const [showNewPassword, setShowNewPassword] = useState(false);
-    const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-    const [isForgotPasswordLoading, setIsForgotPasswordLoading] = useState(false);
-    const [forgotPasswordErrors, setForgotPasswordErrors] = useState<{ 
-        email?: string; 
-        newPassword?: string; 
-        confirmPassword?: string 
-    }>({});
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {}
+  );
 
-    const navigate = useNavigate();
-    const location = useLocation();
-    const { toast } = useToast();
-    const { login } = useAuth();
+  // Forgot password state
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [isForgotPasswordLoading, setIsForgotPasswordLoading] = useState(false);
+  const [forgotPasswordErrors, setForgotPasswordErrors] = useState<{
+    email?: string;
+    newPassword?: string;
+    confirmPassword?: string;
+  }>({});
 
-    // Get the intended destination from location state
-    const from = location.state?.from?.pathname || "/";
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { toast } = useToast();
+  const { login } = useAuth();
 
-    // Email validation
-    const validateEmail = (email: string): boolean => {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-        return emailRegex.test(email);
-    };
+  // Get the intended destination from location state
+  const from = location.state?.from?.pathname || '/';
 
-    // Form validation
-    const validateForm = (): boolean => {
-        const newErrors: { email?: string; password?: string } = {};
+  // Email validation
+  const validateEmail = (email: string): boolean => {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    return emailRegex.test(email);
+  };
 
-        if (!email.trim()) {
-            newErrors.email = "Email is required";
-        } else if (!validateEmail(email)) {
-            newErrors.email = "Please enter a valid email address";
+  // Form validation
+  const validateForm = (): boolean => {
+    const newErrors: { email?: string; password?: string } = {};
+
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!validateEmail(email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!password.trim()) {
+      newErrors.password = 'Password is required';
+    } else if (password.length < 4) {
+      newErrors.password = 'Password must be at least 4 characters long';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Forgot password form validation
+  const validateForgotPasswordForm = (): boolean => {
+    const newErrors: {
+      email?: string;
+      newPassword?: string;
+      confirmPassword?: string;
+    } = {};
+
+    if (!forgotPasswordEmail.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!validateEmail(forgotPasswordEmail)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!newPassword.trim()) {
+      newErrors.newPassword = 'New password is required';
+    } else if (newPassword.length < 6) {
+      newErrors.newPassword = 'Password must be at least 6 characters long';
+    }
+
+    if (!confirmPassword.trim()) {
+      newErrors.confirmPassword = 'Please confirm your password';
+    } else if (newPassword !== confirmPassword) {
+      newErrors.confirmPassword = 'Passwords do not match';
+    }
+
+    setForgotPasswordErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  // Helper function to normalize role
+  const normalizeRole = (role: string | number): 'admin' | 'hr' => {
+    if (typeof role === 'number') {
+      // Based on your API response: 2 = hr
+      return role === 2 ? 'hr' : 'admin';
+    }
+
+    // Handle string roles - convert to lowercase for comparison
+    const roleStr = String(role).toLowerCase();
+    console.log('Normalizing role:', role, 'to lowercase:', roleStr);
+
+    if (
+      roleStr === 'hr' ||
+      roleStr === 'h.r' ||
+      roleStr === 'human resources'
+    ) {
+      return 'hr';
+    }
+    // Default to admin for any other string value (including 'admin', 'Admin', 'ADMIN', etc.)
+    return 'admin';
+  };
+
+  // Helper function to get dashboard route based on role
+  const getDashboardRoute = (role: string | number): string => {
+    const normalizedRole = normalizeRole(role);
+    return normalizedRole === 'hr' ? '/hr-dashboard' : '/admin-dashboard';
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Clear previous errors
+    setErrors({});
+
+    // Validate form
+    if (!validateForm()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors below and try again',
+        variant: 'warning', // Change from destructive to warning
+      });
+      return;
+    }
+
+    setIsLoading(true);
+
+    try {
+      const payload = {
+        email: email.trim(),
+        password: password,
+      };
+
+      console.log('Sending login request with payload:', payload);
+      console.log('API URL:', API_URLS.LOGIN.POST_LOGIN);
+      console.log(
+        'Full URL:',
+        `${axiosInstance.defaults.baseURL}${API_URLS.LOGIN.POST_LOGIN}`
+      );
+
+      const response = await axiosInstance.post<LoginResponse>(
+        API_URLS.LOGIN.POST_LOGIN,
+        payload
+      );
+
+      console.log('Full response:', response);
+      console.log('Response data:', response.data);
+      console.log('Response status:', response.status);
+
+      // Safely extract data from response with fallbacks
+      const responseData = response.data;
+      console.log('Full response data:', responseData);
+
+      // Try different possible field names for tokens
+      const access =
+        responseData.access || responseData.access_token || responseData.token;
+      const refresh = responseData.refresh || responseData.refresh_token;
+      const user = responseData.user || responseData.user_data;
+
+      console.log('Extracted access token:', access);
+      console.log('Extracted refresh token:', refresh);
+      console.log('Extracted user data:', user);
+      console.log(
+        'User object keys:',
+        user ? Object.keys(user) : 'No user object'
+      );
+      console.log('User id:', user?.id);
+      console.log('User email:', user?.email);
+      console.log('User role (raw):', user?.role);
+      console.log('User name:', user?.name);
+
+      // Validate that we have the required data
+      if (!access) {
+        throw new Error('Access token not found in response');
+      }
+      if (!user) {
+        throw new Error('User data not found in response');
+      }
+      if (user.role === undefined || user.role === null) {
+        throw new Error('User role not found in response');
+      }
+
+      // Normalize the role
+      const normalizedRole = normalizeRole(user.role);
+      console.log('Normalized role:', normalizedRole);
+
+      // Store tokens in localStorage
+      localStorage.setItem('access_token', access);
+      if (refresh) {
+        localStorage.setItem('refresh_token', refresh);
+      }
+      console.log(responseData);
+
+      // Store role-specific data in localStorage
+      if (responseData.admin_data) {
+        localStorage.setItem(
+          'admin_data',
+          JSON.stringify(responseData.admin_data)
+        );
+      }
+      if (responseData.hr_data) {
+        localStorage.setItem('hr_data', JSON.stringify(responseData.hr_data));
+      }
+
+      // Store complete user data with normalized role
+      const normalizedUserData = {
+        ...user,
+        role: normalizedRole,
+      };
+      localStorage.setItem('user_data', JSON.stringify(normalizedUserData));
+      // Also store in the key that useAuth expects
+      localStorage.setItem(
+        'user',
+        JSON.stringify({
+          id: user.id?.toString() || '0',
+          email: user.email || '',
+          role: normalizedRole,
+          name: user.name || user.email || 'User',
+        })
+      );
+
+      // Use the auth hook to login
+      login(access, {
+        id: user.id?.toString() || '0',
+        email: user.email || '',
+        role: normalizedRole,
+        name: user.name || user.email || 'User',
+      });
+
+      toast({
+        title: 'Login Successful',
+        description: `Welcome back!`,
+        variant: 'success', // Add this line
+      });
+
+      // Get the appropriate dashboard route
+      const dashboardRoute = getDashboardRoute(user.role);
+      console.log('User role for navigation:', user.role);
+      console.log('Normalized role for navigation:', normalizedRole);
+      console.log('Dashboard route:', dashboardRoute);
+
+      // Navigate to the appropriate dashboard
+      console.log('About to navigate to:', dashboardRoute);
+      navigate(dashboardRoute);
+      console.log('Navigation called successfully');
+    } catch (error: any) {
+      console.error('Login error:', error);
+      console.error('Error type:', typeof error);
+      console.error('Error message:', error.message);
+      console.error('Error response:', error.response);
+      console.error('Error request:', error.request);
+
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      let errorTitle = 'Login Failed';
+
+      if (error.response) {
+        // Server responded with error status
+        const { status, data } = error.response;
+
+        switch (status) {
+          case 400:
+            errorTitle = 'Invalid Request';
+            errorMessage =
+              data?.message || 'Please check your email and password';
+            break;
+          case 401:
+            errorTitle = 'Authentication Failed';
+            errorMessage = data?.message || 'Invalid email or password';
+            break;
+          case 403:
+            errorTitle = 'Access Denied';
+            errorMessage =
+              data?.message ||
+              'Your account does not have permission to access this system';
+            break;
+          case 404:
+            errorTitle = 'Account Not Found';
+            errorMessage =
+              data?.message || 'No account found with this email address';
+            break;
+          case 422:
+            errorTitle = 'Validation Error';
+            errorMessage =
+              data?.message || 'Please check your input and try again';
+            break;
+          case 429:
+            errorTitle = 'Too Many Attempts';
+            errorMessage =
+              data?.message ||
+              'Too many login attempts. Please try again later';
+            break;
+          case 500:
+            errorTitle = 'Server Error';
+            errorMessage =
+              data?.message ||
+              'Server is experiencing issues. Please try again later';
+            break;
+          default:
+            errorMessage = data?.message || errorMessage;
         }
+      } else if (error.request) {
+        // Network error
+        errorTitle = 'Connection Error';
+        errorMessage =
+          'Unable to connect to the server. Please check your internet connection';
+      }
 
-        if (!password.trim()) {
-            newErrors.password = "Password is required";
-        } else if (password.length < 4) {
-            newErrors.password = "Password must be at least 4 characters long";
+      toast({
+        title: errorTitle,
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Handle forgot password submission
+  const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    // Clear previous errors
+    setForgotPasswordErrors({});
+
+    // Validate form
+    if (!validateForgotPasswordForm()) {
+      toast({
+        title: 'Validation Error',
+        description: 'Please fix the errors below and try again',
+        variant: 'warning', // Change from destructive to warning
+      });
+      return;
+    }
+
+    setIsForgotPasswordLoading(true);
+
+    try {
+      const payload = {
+        email: forgotPasswordEmail.trim(),
+        new_password: newPassword,
+      };
+
+      console.log('Sending forgot password request with payload:', payload);
+      console.log('API URL:', API_URLS.LOGIN.POST_FORGOT_PASSWORD);
+
+      const response = await axiosInstance.post(
+        API_URLS.LOGIN.POST_FORGOT_PASSWORD,
+        payload
+      );
+
+      console.log('Forgot password response:', response);
+
+      toast({
+        title: 'Password Reset Successful',
+        description:
+          'Your password has been reset successfully. You can now login with your new password.',
+        variant: 'success',
+      });
+
+      // Reset form and go back to login
+      setShowForgotPassword(false);
+      setForgotPasswordEmail('');
+      setNewPassword('');
+      setConfirmPassword('');
+      setForgotPasswordErrors({});
+    } catch (error: any) {
+      console.error('Forgot password error:', error);
+
+      let errorMessage = 'An unexpected error occurred. Please try again.';
+      let errorTitle = 'Password Reset Failed';
+
+      if (error.response) {
+        const { status, data } = error.response;
+
+        switch (status) {
+          case 400:
+            errorTitle = 'Invalid Request';
+            errorMessage =
+              data?.message || 'Please check your email and new password';
+            break;
+          case 404:
+            errorTitle = 'Account Not Found';
+            errorMessage =
+              data?.message || 'No account found with this email address';
+            break;
+          case 422:
+            errorTitle = 'Validation Error';
+            errorMessage =
+              data?.message || 'Please check your input and try again';
+            break;
+          case 500:
+            errorTitle = 'Server Error';
+            errorMessage =
+              data?.message ||
+              'Server is experiencing issues. Please try again later';
+            break;
+          default:
+            errorMessage = data?.message || errorMessage;
         }
+      } else if (error.request) {
+        errorTitle = 'Connection Error';
+        errorMessage =
+          'Unable to connect to the server. Please check your internet connection';
+      }
 
-        setErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
+      toast({
+        title: errorTitle,
+        description: errorMessage,
+        variant: 'destructive',
+      });
+    } finally {
+      setIsForgotPasswordLoading(false);
+    }
+  };
 
-    // Forgot password form validation
-    const validateForgotPasswordForm = (): boolean => {
-        const newErrors: { email?: string; newPassword?: string; confirmPassword?: string } = {};
+  // Clear field errors on input change
+  const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setEmail(e.target.value);
+    if (errors.email) {
+      setErrors(prev => ({ ...prev, email: undefined }));
+    }
+  };
 
-        if (!forgotPasswordEmail.trim()) {
-            newErrors.email = "Email is required";
-        } else if (!validateEmail(forgotPasswordEmail)) {
-            newErrors.email = "Please enter a valid email address";
-        }
+  const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPassword(e.target.value);
+    if (errors.password) {
+      setErrors(prev => ({ ...prev, password: undefined }));
+    }
+  };
 
-        if (!newPassword.trim()) {
-            newErrors.newPassword = "New password is required";
-        } else if (newPassword.length < 6) {
-            newErrors.newPassword = "Password must be at least 6 characters long";
-        }
+  // Forgot password form handlers
+  const handleForgotPasswordEmailChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setForgotPasswordEmail(e.target.value);
+    if (forgotPasswordErrors.email) {
+      setForgotPasswordErrors(prev => ({ ...prev, email: undefined }));
+    }
+  };
 
-        if (!confirmPassword.trim()) {
-            newErrors.confirmPassword = "Please confirm your password";
-        } else if (newPassword !== confirmPassword) {
-            newErrors.confirmPassword = "Passwords do not match";
-        }
+  const handleNewPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setNewPassword(e.target.value);
+    if (forgotPasswordErrors.newPassword) {
+      setForgotPasswordErrors(prev => ({ ...prev, newPassword: undefined }));
+    }
+  };
 
-        setForgotPasswordErrors(newErrors);
-        return Object.keys(newErrors).length === 0;
-    };
+  const handleConfirmPasswordChange = (
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    setConfirmPassword(e.target.value);
+    if (forgotPasswordErrors.confirmPassword) {
+      setForgotPasswordErrors(prev => ({
+        ...prev,
+        confirmPassword: undefined,
+      }));
+    }
+  };
 
-    // Helper function to normalize role
-    const normalizeRole = (role: string | number): 'admin' | 'hr' => {
-        if (typeof role === 'number') {
-            // Based on your API response: 2 = hr
-            return role === 2 ? 'hr' : 'admin';
-        }
-        
-        // Handle string roles - convert to lowercase for comparison
-        const roleStr = String(role).toLowerCase();
-        console.log("Normalizing role:", role, "to lowercase:", roleStr);
-        
-        if (roleStr === 'hr' || roleStr === 'h.r' || roleStr === 'human resources') {
-            return 'hr';
-        }
-        // Default to admin for any other string value (including 'admin', 'Admin', 'ADMIN', etc.)
-        return 'admin';
-    };
+  // Handle forgot password button click
+  const handleForgotPasswordClick = () => {
+    setShowForgotPassword(true);
+    // Pre-fill email if user had entered it on login form
+    if (email.trim()) {
+      setForgotPasswordEmail(email.trim());
+    }
+  };
 
-    // Helper function to get dashboard route based on role
-    const getDashboardRoute = (role: string | number): string => {
-        const normalizedRole = normalizeRole(role);
-        return normalizedRole === 'hr' ? '/hr-dashboard' : '/admin-dashboard';
-    };
+  // Handle back to login button click
+  const handleBackToLogin = () => {
+    setShowForgotPassword(false);
+    setForgotPasswordEmail('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setForgotPasswordErrors({});
+  };
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-lg">
+        {!showForgotPassword ? (
+          // Login Form
+          <>
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <Users className="h-6 w-6 text-primary" />
+              </div>
+              <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
+              <CardDescription>Sign in to your HRMS account</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={email}
+                      onChange={handleEmailChange}
+                      className={`pl-10 ${
+                        errors.email
+                          ? 'border-red-500 focus-visible:ring-red-500'
+                          : ''
+                      }`}
+                      required
+                    />
+                  </div>
+                  {errors.email && (
+                    <p className="text-sm text-red-500 mt-1">{errors.email}</p>
+                  )}
+                </div>
 
-        // Clear previous errors
-        setErrors({});
+                <div className="space-y-2">
+                  <label htmlFor="password" className="text-sm font-medium">
+                    Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      placeholder="Enter your password"
+                      value={password}
+                      onChange={handlePasswordChange}
+                      className={`pl-10 pr-10 ${
+                        errors.password
+                          ? 'border-red-500 focus-visible:ring-red-500'
+                          : ''
+                      }`}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowPassword(!showPassword)}
+                    >
+                      {showPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {errors.password && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {errors.password}
+                    </p>
+                  )}
+                </div>
 
-        // Validate form
-        if (!validateForm()) {
-            toast({
-                title: "Validation Error",
-                description: "Please fix the errors below and try again",
-                variant: "warning", // Change from destructive to warning
-            });
-            return;
-        }
+                <Button type="submit" className="w-full" disabled={isLoading}>
+                  {isLoading ? 'Signing in...' : 'Sign In'}
+                </Button>
 
-        setIsLoading(true);
+                <div className="text-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm text-muted-foreground hover:text-primary"
+                    onClick={handleForgotPasswordClick}
+                  >
+                    Forgot Password?
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </>
+        ) : (
+          // Forgot Password Form
+          <>
+            <CardHeader className="text-center">
+              <div className="mx-auto mb-4 w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
+                <Lock className="h-6 w-6 text-primary" />
+              </div>
+              <CardTitle className="text-2xl font-bold">
+                Reset Password
+              </CardTitle>
+              <CardDescription>
+                Enter your email and new password to reset your account
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
+                <div className="space-y-2">
+                  <label htmlFor="forgot-email" className="text-sm font-medium">
+                    Email
+                  </label>
+                  <div className="relative">
+                    <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="forgot-email"
+                      type="email"
+                      placeholder="Enter your email"
+                      value={forgotPasswordEmail}
+                      onChange={handleForgotPasswordEmailChange}
+                      className={`pl-10 ${
+                        forgotPasswordErrors.email
+                          ? 'border-red-500 focus-visible:ring-red-500'
+                          : ''
+                      }`}
+                      required
+                    />
+                  </div>
+                  {forgotPasswordErrors.email && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {forgotPasswordErrors.email}
+                    </p>
+                  )}
+                </div>
 
-        try {
-            const payload = {
-                email: email.trim(),
-                password: password,
-            };
+                <div className="space-y-2">
+                  <label htmlFor="new-password" className="text-sm font-medium">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="new-password"
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="Enter new password"
+                      value={newPassword}
+                      onChange={handleNewPasswordChange}
+                      className={`pl-10 pr-10 ${
+                        forgotPasswordErrors.newPassword
+                          ? 'border-red-500 focus-visible:ring-red-500'
+                          : ''
+                      }`}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                    >
+                      {showNewPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {forgotPasswordErrors.newPassword && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {forgotPasswordErrors.newPassword}
+                    </p>
+                  )}
+                </div>
 
-            console.log("Sending login request with payload:", payload);
-            console.log("API URL:", API_URLS.LOGIN.POST_LOGIN);
-            console.log("Full URL:", `${axiosInstance.defaults.baseURL}${API_URLS.LOGIN.POST_LOGIN}`);
+                <div className="space-y-2">
+                  <label
+                    htmlFor="confirm-password"
+                    className="text-sm font-medium"
+                  >
+                    Confirm Password
+                  </label>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      id="confirm-password"
+                      type={showConfirmPassword ? 'text' : 'password'}
+                      placeholder="Confirm new password"
+                      value={confirmPassword}
+                      onChange={handleConfirmPasswordChange}
+                      className={`pl-10 pr-10 ${
+                        forgotPasswordErrors.confirmPassword
+                          ? 'border-red-500 focus-visible:ring-red-500'
+                          : ''
+                      }`}
+                      required
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                      onClick={() =>
+                        setShowConfirmPassword(!showConfirmPassword)
+                      }
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  {forgotPasswordErrors.confirmPassword && (
+                    <p className="text-sm text-red-500 mt-1">
+                      {forgotPasswordErrors.confirmPassword}
+                    </p>
+                  )}
+                </div>
 
-            const response = await axiosInstance.post<LoginResponse>(
-                API_URLS.LOGIN.POST_LOGIN,
-                payload
-            );
-            
-            console.log("Full response:", response);
-            console.log("Response data:", response.data);
-            console.log("Response status:", response.status);
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={isForgotPasswordLoading}
+                >
+                  {isForgotPasswordLoading
+                    ? 'Resetting Password...'
+                    : 'Reset Password'}
+                </Button>
 
-            // Safely extract data from response with fallbacks
-            const responseData = response.data;
-            console.log("Full response data:", responseData);
-            
-            // Try different possible field names for tokens
-            const access = responseData.access || responseData.access_token || responseData.token;
-            const refresh = responseData.refresh || responseData.refresh_token;
-            const user = responseData.user || responseData.user_data;
-            
-            console.log("Extracted access token:", access);
-            console.log("Extracted refresh token:", refresh);
-            console.log("Extracted user data:", user);
-            console.log("User object keys:", user ? Object.keys(user) : 'No user object');
-            console.log("User id:", user?.id);
-            console.log("User email:", user?.email);
-            console.log("User role (raw):", user?.role);
-            console.log("User name:", user?.name);
-            
-            // Validate that we have the required data
-            if (!access) {
-                throw new Error("Access token not found in response");
-            }
-            if (!user) {
-                throw new Error("User data not found in response");
-            }
-            if (user.role === undefined || user.role === null) {
-                throw new Error("User role not found in response");
-            }
-            
-            // Normalize the role
-            const normalizedRole = normalizeRole(user.role);
-            console.log("Normalized role:", normalizedRole);
-            
-            // Store tokens in localStorage
-            localStorage.setItem("access_token", access);
-            if (refresh) {
-                localStorage.setItem("refresh_token", refresh);
-            }
-console.log(responseData);
-
-            // Store role-specific data in localStorage
-            if (responseData.admin_data) {
-                localStorage.setItem("admin_data", JSON.stringify(responseData.admin_data));
-            }
-            if (responseData.hr_data) {
-                localStorage.setItem("hr_data", JSON.stringify(responseData.hr_data));
-            }
-
-            // Store complete user data with normalized role
-            const normalizedUserData = {
-                ...user,
-                role: normalizedRole
-            };
-            localStorage.setItem("user_data", JSON.stringify(normalizedUserData));
-            // Also store in the key that useAuth expects
-            localStorage.setItem("user", JSON.stringify({
-                id: user.id?.toString() || '0',
-                email: user.email || '',
-                role: normalizedRole,
-                name: user.name || user.email || 'User'
-            }));
-
-            // Use the auth hook to login
-            login(access, {
-                id: user.id?.toString() || '0',
-                email: user.email || '',
-                role: normalizedRole,
-                name: user.name || user.email || 'User'
-            });
-
-            toast({
-                title: "Login Successful",
-                description: `Welcome back!`,
-                variant: "success", // Add this line
-            });
-            
-
-            // Get the appropriate dashboard route
-            const dashboardRoute = getDashboardRoute(user.role);
-            console.log("User role for navigation:", user.role);
-            console.log("Normalized role for navigation:", normalizedRole);
-            console.log("Dashboard route:", dashboardRoute);
-            
-            // Navigate to the appropriate dashboard
-            console.log("About to navigate to:", dashboardRoute);
-            navigate(dashboardRoute);
-            console.log("Navigation called successfully");
-
-        } catch (error: any) {
-            console.error("Login error:", error);
-            console.error("Error type:", typeof error);
-            console.error("Error message:", error.message);
-            console.error("Error response:", error.response);
-            console.error("Error request:", error.request);
-
-            let errorMessage = "An unexpected error occurred. Please try again.";
-            let errorTitle = "Login Failed";
-
-            if (error.response) {
-                // Server responded with error status
-                const { status, data } = error.response;
-
-                switch (status) {
-                    case 400:
-                        errorTitle = "Invalid Request";
-                        errorMessage = data?.message || "Please check your email and password";
-                        break;
-                    case 401:
-                        errorTitle = "Authentication Failed";
-                        errorMessage = data?.message || "Invalid email or password";
-                        break;
-                    case 403:
-                        errorTitle = "Access Denied";
-                        errorMessage = data?.message || "Your account does not have permission to access this system";
-                        break;
-                    case 404:
-                        errorTitle = "Account Not Found";
-                        errorMessage = data?.message || "No account found with this email address";
-                        break;
-                    case 422:
-                        errorTitle = "Validation Error";
-                        errorMessage = data?.message || "Please check your input and try again";
-                        break;
-                    case 429:
-                        errorTitle = "Too Many Attempts";
-                        errorMessage = data?.message || "Too many login attempts. Please try again later";
-                        break;
-                    case 500:
-                        errorTitle = "Server Error";
-                        errorMessage = data?.message || "Server is experiencing issues. Please try again later";
-                        break;
-                    default:
-                        errorMessage = data?.message || errorMessage;
-                }
-            } else if (error.request) {
-                // Network error
-                errorTitle = "Connection Error";
-                errorMessage = "Unable to connect to the server. Please check your internet connection";
-            }
-
-            toast({
-                title: errorTitle,
-                description: errorMessage,
-                variant: "destructive",
-            });
-        } finally {
-            setIsLoading(false);
-        }
-    };
-
-    // Handle forgot password submission
-    const handleForgotPasswordSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-
-        // Clear previous errors
-        setForgotPasswordErrors({});
-
-        // Validate form
-        if (!validateForgotPasswordForm()) {
-            toast({
-                title: "Validation Error",
-                description: "Please fix the errors below and try again",
-                variant: "warning", // Change from destructive to warning
-            });
-            return;
-        }
-
-        setIsForgotPasswordLoading(true);
-
-        try {
-            const payload = {
-                email: forgotPasswordEmail.trim(),
-                new_password: newPassword,
-            };
-
-            console.log("Sending forgot password request with payload:", payload);
-            console.log("API URL:", API_URLS.LOGIN.POST_FORGOT_PASSWORD);
-
-            const response = await axiosInstance.post(
-                API_URLS.LOGIN.POST_FORGOT_PASSWORD,
-                payload
-            );
-            
-            console.log("Forgot password response:", response);
-
-            toast({
-                title: "Password Reset Successful",
-                description: "Your password has been reset successfully. You can now login with your new password.",
-                variant: "success",
-            });
-
-            // Reset form and go back to login
-            setShowForgotPassword(false);
-            setForgotPasswordEmail("");
-            setNewPassword("");
-            setConfirmPassword("");
-            setForgotPasswordErrors({});
-
-        } catch (error: any) {
-            console.error("Forgot password error:", error);
-
-            let errorMessage = "An unexpected error occurred. Please try again.";
-            let errorTitle = "Password Reset Failed";
-
-            if (error.response) {
-                const { status, data } = error.response;
-
-                switch (status) {
-                    case 400:
-                        errorTitle = "Invalid Request";
-                        errorMessage = data?.message || "Please check your email and new password";
-                        break;
-                    case 404:
-                        errorTitle = "Account Not Found";
-                        errorMessage = data?.message || "No account found with this email address";
-                        break;
-                    case 422:
-                        errorTitle = "Validation Error";
-                        errorMessage = data?.message || "Please check your input and try again";
-                        break;
-                    case 500:
-                        errorTitle = "Server Error";
-                        errorMessage = data?.message || "Server is experiencing issues. Please try again later";
-                        break;
-                    default:
-                        errorMessage = data?.message || errorMessage;
-                }
-            } else if (error.request) {
-                errorTitle = "Connection Error";
-                errorMessage = "Unable to connect to the server. Please check your internet connection";
-            }
-
-            toast({
-                title: errorTitle,
-                description: errorMessage,
-                variant: "destructive",
-            });
-        } finally {
-            setIsForgotPasswordLoading(false);
-        }
-    };
-
-    // Clear field errors on input change
-    const handleEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setEmail(e.target.value);
-        if (errors.email) {
-            setErrors(prev => ({ ...prev, email: undefined }));
-        }
-    };
-
-    const handlePasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setPassword(e.target.value);
-        if (errors.password) {
-            setErrors(prev => ({ ...prev, password: undefined }));
-        }
-    };
-
-    // Forgot password form handlers
-    const handleForgotPasswordEmailChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setForgotPasswordEmail(e.target.value);
-        if (forgotPasswordErrors.email) {
-            setForgotPasswordErrors(prev => ({ ...prev, email: undefined }));
-        }
-    };
-
-    const handleNewPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setNewPassword(e.target.value);
-        if (forgotPasswordErrors.newPassword) {
-            setForgotPasswordErrors(prev => ({ ...prev, newPassword: undefined }));
-        }
-    };
-
-    const handleConfirmPasswordChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-        setConfirmPassword(e.target.value);
-        if (forgotPasswordErrors.confirmPassword) {
-            setForgotPasswordErrors(prev => ({ ...prev, confirmPassword: undefined }));
-        }
-    };
-
-    // Handle forgot password button click
-    const handleForgotPasswordClick = () => {
-        setShowForgotPassword(true);
-        // Pre-fill email if user had entered it on login form
-        if (email.trim()) {
-            setForgotPasswordEmail(email.trim());
-        }
-    };
-
-    // Handle back to login button click
-    const handleBackToLogin = () => {
-        setShowForgotPassword(false);
-        setForgotPasswordEmail("");
-        setNewPassword("");
-        setConfirmPassword("");
-        setForgotPasswordErrors({});
-    };
-
-    return (
-        <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 flex items-center justify-center p-4">
-            <Card className="w-full max-w-md shadow-lg">
-                {!showForgotPassword ? (
-                    // Login Form
-                    <>
-                        <CardHeader className="text-center">
-                            <div className="mx-auto mb-4 w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                                <Users className="h-6 w-6 text-primary" />
-                            </div>
-                            <CardTitle className="text-2xl font-bold">Welcome Back</CardTitle>
-                            <CardDescription>
-                                Sign in to your HRMS account
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form onSubmit={handleSubmit} className="space-y-4">
-                                <div className="space-y-2">
-                                    <label htmlFor="email" className="text-sm font-medium">
-                                        Email
-                                    </label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            id="email"
-                                            type="email"
-                                            placeholder="Enter your email"
-                                            value={email}
-                                            onChange={handleEmailChange}
-                                            className={`pl-10 ${errors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                                            required
-                                        />
-                                    </div>
-                                    {errors.email && (
-                                        <p className="text-sm text-red-500 mt-1">{errors.email}</p>
-                                    )}
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label htmlFor="password" className="text-sm font-medium">
-                                        Password
-                                    </label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            id="password"
-                                            type={showPassword ? "text" : "password"}
-                                            placeholder="Enter your password"
-                                            value={password}
-                                            onChange={handlePasswordChange}
-                                            className={`pl-10 pr-10 ${errors.password ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                                            required
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                            onClick={() => setShowPassword(!showPassword)}
-                                        >
-                                            {showPassword ? (
-                                                <EyeOff className="h-4 w-4" />
-                                            ) : (
-                                                <Eye className="h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </div>
-                                    {errors.password && (
-                                        <p className="text-sm text-red-500 mt-1">{errors.password}</p>
-                                    )}
-                                </div>
-
-                                <Button
-                                    type="submit"
-                                    className="w-full"
-                                    disabled={isLoading}
-                                >
-                                    {isLoading ? "Signing in..." : "Sign In"}
-                                </Button>
-
-                                <div className="text-center">
-                                    <Button
-                                        type="button"
-                                        variant="link"
-                                        className="text-sm text-muted-foreground hover:text-primary"
-                                        onClick={handleForgotPasswordClick}
-                                    >
-                                        Forgot Password?
-                                    </Button>
-                                </div>
-                            </form>
-                        </CardContent>
-                    </>
-                ) : (
-                    // Forgot Password Form
-                    <>
-                        <CardHeader className="text-center">
-                            <div className="mx-auto mb-4 w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
-                                <Lock className="h-6 w-6 text-primary" />
-                            </div>
-                            <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
-                            <CardDescription>
-                                Enter your email and new password to reset your account
-                            </CardDescription>
-                        </CardHeader>
-                        <CardContent>
-                            <form onSubmit={handleForgotPasswordSubmit} className="space-y-4">
-                                <div className="space-y-2">
-                                    <label htmlFor="forgot-email" className="text-sm font-medium">
-                                        Email
-                                    </label>
-                                    <div className="relative">
-                                        <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            id="forgot-email"
-                                            type="email"
-                                            placeholder="Enter your email"
-                                            value={forgotPasswordEmail}
-                                            onChange={handleForgotPasswordEmailChange}
-                                            className={`pl-10 ${forgotPasswordErrors.email ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                                            required
-                                        />
-                                    </div>
-                                    {forgotPasswordErrors.email && (
-                                        <p className="text-sm text-red-500 mt-1">{forgotPasswordErrors.email}</p>
-                                    )}
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label htmlFor="new-password" className="text-sm font-medium">
-                                        New Password
-                                    </label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            id="new-password"
-                                            type={showNewPassword ? "text" : "password"}
-                                            placeholder="Enter new password"
-                                            value={newPassword}
-                                            onChange={handleNewPasswordChange}
-                                            className={`pl-10 pr-10 ${forgotPasswordErrors.newPassword ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                                            required
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                            onClick={() => setShowNewPassword(!showNewPassword)}
-                                        >
-                                            {showNewPassword ? (
-                                                <EyeOff className="h-4 w-4" />
-                                            ) : (
-                                                <Eye className="h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </div>
-                                    {forgotPasswordErrors.newPassword && (
-                                        <p className="text-sm text-red-500 mt-1">{forgotPasswordErrors.newPassword}</p>
-                                    )}
-                                </div>
-
-                                <div className="space-y-2">
-                                    <label htmlFor="confirm-password" className="text-sm font-medium">
-                                        Confirm Password
-                                    </label>
-                                    <div className="relative">
-                                        <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-                                        <Input
-                                            id="confirm-password"
-                                            type={showConfirmPassword ? "text" : "password"}
-                                            placeholder="Confirm new password"
-                                            value={confirmPassword}
-                                            onChange={handleConfirmPasswordChange}
-                                            className={`pl-10 pr-10 ${forgotPasswordErrors.confirmPassword ? 'border-red-500 focus-visible:ring-red-500' : ''}`}
-                                            required
-                                        />
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
-                                            onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                                        >
-                                            {showConfirmPassword ? (
-                                                <EyeOff className="h-4 w-4" />
-                                            ) : (
-                                                <Eye className="h-4 w-4" />
-                                            )}
-                                        </Button>
-                                    </div>
-                                    {forgotPasswordErrors.confirmPassword && (
-                                        <p className="text-sm text-red-500 mt-1">{forgotPasswordErrors.confirmPassword}</p>
-                                    )}
-                                </div>
-
-                                <Button
-                                    type="submit"
-                                    className="w-full"
-                                    disabled={isForgotPasswordLoading}
-                                >
-                                    {isForgotPasswordLoading ? "Resetting Password..." : "Reset Password"}
-                                </Button>
-
-                                <div className="text-center">
-                                    <Button
-                                        type="button"
-                                        variant="link"
-                                        className="text-sm text-muted-foreground hover:text-primary"
-                                        onClick={handleBackToLogin}
-                                    >
-                                        Back to Login
-                                    </Button>
-                                </div>
-                            </form>
-                        </CardContent>
-                    </>
-                )}
-            </Card>
-        </div>
-    );
+                <div className="text-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    className="text-sm text-muted-foreground hover:text-primary"
+                    onClick={handleBackToLogin}
+                  >
+                    Back to Login
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </>
+        )}
+      </Card>
+    </div>
+  );
 };
 
 export default Login;

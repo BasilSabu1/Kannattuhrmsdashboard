@@ -1,18 +1,14 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
-import { useAuth } from "@/hooks/use-auth";
-import { 
-  Users, 
-  LogOut, 
-  Menu,
-  User,
-  Shield
-} from "lucide-react";
-import { OnboardingDashboard } from "./OnboardingDashboard";
-import HRManagement from "./HRManagement";
+import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Separator } from '@/components/ui/separator';
+import { useAuth } from '@/hooks/use-auth';
+import { Users, LogOut, Menu, User, Shield } from 'lucide-react';
+import { OnboardingDashboard } from './OnboardingDashboard';
+import { OffboardingDashboard } from './OffBoardingDashboard';
+import HRManagement from './HRManagement';
+import ExitRequest from './ExitRequest';
 
 interface SidebarItem {
   id: string;
@@ -23,26 +19,32 @@ interface SidebarItem {
 
 const AdminDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState("onboarding");
+  const [activeSection, setActiveSection] = useState('onboarding');
   const navigate = useNavigate();
   const { logout } = useAuth();
 
   const sidebarItems: SidebarItem[] = [
-    { id: "onboarding", label: "Onboarding", icon: Users },
-    { id: "hr-management", label: "HR Management", icon: User },
+    { id: 'onboarding', label: 'Onboarding', icon: Users },
+    { id: 'hr-management', label: 'HR Management', icon: User },
+    { id: 'offboarding', label: 'Offboarding', icon: LogOut },
+    { id: 'exit-request', label: 'Exit Requests', icon: LogOut },
   ];
 
   const handleLogout = () => {
     logout();
-    navigate("/login");
+    navigate('/login');
   };
 
   const renderContent = () => {
     switch (activeSection) {
-      case "onboarding":
+      case 'onboarding':
         return <OnboardingDashboard />;
-      case "hr-management":
+      case 'hr-management':
         return <HRManagement />;
+      case 'offboarding':
+        return <OffboardingDashboard />;
+        case 'exit-request':
+          return <ExitRequest />;
       default:
         return <OnboardingDashboard />;
     }
@@ -52,17 +54,19 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-background">
       {/* Mobile Sidebar Overlay */}
       {sidebarOpen && (
-        <div 
+        <div
           className="fixed inset-0 bg-black/50 z-40 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       {/* Sidebar */}
-      <div className={`
+      <div
+        className={`
         fixed inset-y-0 left-0 z-50 w-64 bg-card border-r transform transition-transform duration-200 ease-in-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
-      `}>
+      `}
+      >
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="p-6 border-b">
@@ -70,7 +74,9 @@ const AdminDashboard = () => {
               <Shield className="h-8 w-8 text-primary" />
               <div>
                 <h1 className="text-xl font-bold">HRMS Admin</h1>
-                <p className="text-sm text-muted-foreground">Administrator Panel</p>
+                <p className="text-sm text-muted-foreground">
+                  Administrator Panel
+                </p>
               </div>
             </div>
           </div>
@@ -78,12 +84,14 @@ const AdminDashboard = () => {
           {/* Navigation */}
           <nav className="flex-1 p-4">
             <ul className="space-y-2">
-              {sidebarItems.map((item) => {
+              {sidebarItems.map(item => {
                 const Icon = item.icon;
                 return (
                   <li key={item.id}>
                     <Button
-                      variant={activeSection === item.id ? "secondary" : "ghost"}
+                      variant={
+                        activeSection === item.id ? 'secondary' : 'ghost'
+                      }
                       className="w-full justify-start gap-3"
                       onClick={() => {
                         setActiveSection(item.id);
@@ -128,7 +136,8 @@ const AdminDashboard = () => {
                 <Menu className="h-5 w-5" />
               </Button>
               <h2 className="text-xl font-semibold">
-                {sidebarItems.find(item => item.id === activeSection)?.label || "Dashboard"}
+                {sidebarItems.find(item => item.id === activeSection)?.label ||
+                  'Dashboard'}
               </h2>
             </div>
             <div className="flex items-center gap-4">
@@ -141,12 +150,10 @@ const AdminDashboard = () => {
         </header>
 
         {/* Page Content */}
-        <main className="min-h-[calc(100vh-4rem)]">
-          {renderContent()}
-        </main>
+        <main className="min-h-[calc(100vh-4rem)]">{renderContent()}</main>
       </div>
     </div>
   );
 };
 
-export default AdminDashboard; 
+export default AdminDashboard;
