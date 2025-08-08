@@ -33,6 +33,7 @@ export const API_URLS = {
 
   RESIGNATION: {
     GET_RESIGNATIONS: 'api/resignation/user/',
+    GET_RESIGNATIONS_BY_UUID:uuid=>`api/resignations/user/${uuid}/`,
     DELETE_RESIGNATION_BY_UUID: uuid => `api/resignation/${uuid}/delete/`,
     RESIGNATION_STATUS_UPDATE_BY_UUID: uuid =>
       `api/resignation/${uuid}/status/`,
