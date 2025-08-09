@@ -307,7 +307,7 @@ const AdminDashboard = () => {
             <div className="flex items-center gap-4">
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
                 <User className="h-4 w-4" />
-                <span>Admin User</span>
+                <span>Admin</span>
               </div>
             </div>
           </div>
