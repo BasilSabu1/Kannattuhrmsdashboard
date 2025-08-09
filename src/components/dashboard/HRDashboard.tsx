@@ -1539,6 +1539,8 @@ import {
   ZoomIn,
   ZoomOut,
   RefreshCw,
+  UserX,
+  ClipboardList,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -1665,8 +1667,8 @@ const HRDashboard = () => {
     // { id: "overview", label: "Overview", icon: BarChart3 },
     // { id: "employees", label: "Employees", icon: Users },
     { id: 'onboarding', label: 'Onboarding', icon: UserCheck },
-    { id: 'offboarding', label: 'Offboarding', icon: LogOut },
-    { id: 'exit-request', label: 'Exit Requests', icon: Menu },
+    { id: 'offboarding', label: 'Offboarding', icon: UserX },
+    { id: 'exit-request', label: 'Exit Requests', icon: ClipboardList },
     // { id: "reports", label: "Reports", icon: FileText },
     // { id: "settings", label: "Settings", icon: Settings },
   ];
