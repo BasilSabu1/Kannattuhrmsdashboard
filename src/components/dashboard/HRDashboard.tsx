@@ -1461,7 +1461,7 @@
 // export default HRDashboard;
 
 import { useState, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -1634,7 +1634,9 @@ interface ApiResponse {
 
 const HRDashboard = () => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [activeSection, setActiveSection] = useState('onboarding');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialSection = searchParams.get('section') || 'onboarding';
+  const [activeSection, setActiveSection] = useState(initialSection);
   const navigate = useNavigate();
   const { logout } = useAuth();
   const { toast } = useToast();
@@ -1753,6 +1755,23 @@ const HRDashboard = () => {
     logout();
     navigate('/login');
   };
+
+  const handleSetSection = useCallback(
+    (sectionId: string) => {
+      setActiveSection(sectionId);
+      const next = new URLSearchParams(searchParams);
+      next.set('section', sectionId);
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams]
+  );
+
+  useEffect(() => {
+    const section = searchParams.get('section') || 'onboarding';
+    if (section !== activeSection) {
+      setActiveSection(section);
+    }
+  }, [searchParams]);
 
   // Status update function
   const handleStatusUpdate = async (uuid: string, newStatus: string) => {
@@ -2859,7 +2878,7 @@ const HRDashboard = () => {
                       }
                       className="w-full justify-start gap-3"
                       onClick={() => {
-                        setActiveSection(item.id);
+                        handleSetSection(item.id);
                         setSidebarOpen(false);
                       }}
                     >
