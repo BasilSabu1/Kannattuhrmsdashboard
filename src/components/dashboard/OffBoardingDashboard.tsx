@@ -80,12 +80,12 @@ export function OffboardingDashboard({
 
       setApprovedResignations(res.data.data || []);
       setTotalPages(res.data.pagination?.totalPages || 1);
-      setTotalItems(res.data.pagination?.total || 0);
+      // setTotalItems(res.data.pagination?.total || 0);
     } catch (error) {
       console.error('Error fetching approved resignations:', error);
       setApprovedResignations([]);
       setTotalPages(1);
-      setTotalItems(0);
+      // setTotalItems(0);
     }
   };
 
@@ -95,7 +95,12 @@ export function OffboardingDashboard({
 
   // Debug: Log the data to check field names
   console.log('Approved resignations:', approvedResignations);
-  console.log('Pagination info:', { currentPage, totalPages, totalItems, pageSize });
+  console.log('Pagination info:', {
+    currentPage,
+    totalPages,
+    totalItems,
+    pageSize,
+  });
 
   // Helper function to calculate notice period progress
   const calculateNoticeProgress = (resignationDate, lastWorkingDate) => {
@@ -107,38 +112,45 @@ export function OffboardingDashboard({
         remainingDays: 15,
         progressPercentage: 50,
         isCompleted: false,
-        isOverdue: false
+        isOverdue: false,
       };
     }
 
     const currentDate = new Date();
     const startDate = new Date(resignationDate);
     const endDate = new Date(lastWorkingDate);
-    
-    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-    const elapsedDays = Math.ceil((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const totalDays = Math.ceil(
+      (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
+    const elapsedDays = Math.ceil(
+      (currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)
+    );
     const remainingDays = Math.max(0, totalDays - elapsedDays);
-    
-    const progressPercentage = Math.min(100, Math.max(0, (elapsedDays / totalDays) * 100));
-    
+
+    const progressPercentage = Math.min(
+      100,
+      Math.max(0, (elapsedDays / totalDays) * 100)
+    );
+
     return {
       totalDays: Math.max(1, totalDays), // Ensure at least 1 day
       elapsedDays: Math.max(0, elapsedDays),
       remainingDays,
       progressPercentage,
       isCompleted: currentDate >= endDate,
-      isOverdue: currentDate > endDate
+      isOverdue: currentDate > endDate,
     };
   };
 
   // Format date helper
-  const formatDate = (dateString) => {
+  const formatDate = dateString => {
     if (!dateString) return 'Not set';
     try {
       return new Date(dateString).toLocaleDateString('en-US', {
         month: 'short',
         day: 'numeric',
-        year: 'numeric'
+        year: 'numeric',
       });
     } catch (error) {
       return 'Invalid date';
@@ -149,6 +161,10 @@ export function OffboardingDashboard({
     try {
       setLoading(true);
       setError(null);
+
+      const params = new URLSearchParams();
+    params.append('page', '1');
+    params.append('limit', '100');
       const res = await axiosInstance.get(
         API_URLS.RESIGNATION.GET_RESIGNATIONS
       );
@@ -158,6 +174,7 @@ export function OffboardingDashboard({
         approved: res.data.status_counts.approved || 0,
         rejected: res.data.status_counts.rejected || 0,
       });
+      setTotalItems(res.data.pagination.total || 0);
     } catch (error) {
       console.error('Error fetching resignation', error);
     } finally {
@@ -167,23 +184,20 @@ export function OffboardingDashboard({
 
   useEffect(() => {
     getResignation();
-  }, []); 
+  }, []);
 
   // Fetch approved resignations when page changes
   useEffect(() => {
     getApprovedResignations();
   }, [currentPage]);
 
-
   console.log(resignation);
-  
 
-  const totalRequests = resignation.length;
-
+  // const totalRequests = totalItems;
   const EXIT_STATS = [
     {
       label: 'Total Requests',
-      value: totalRequests,
+      value: totalItems,
       note: 'All employee exit requests',
       icon: Users,
       color: 'bg-blue-500',
@@ -214,7 +228,7 @@ export function OffboardingDashboard({
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
-        <div className="max-w-7xl mx-auto">
+        <div className="w-full ">
           <Card className="shadow-lg">
             <CardContent className="p-12">
               <div className="flex flex-col items-center justify-center space-y-4">
@@ -390,12 +404,15 @@ export function OffboardingDashboard({
               ) : (
                 approvedResignations.map((employee, idx) => {
                   const progress = calculateNoticeProgress(
-                    employee.resignation_date, 
+                    employee.resignation_date,
                     employee.last_working_date
                   );
-                  
+
                   return (
-                    <div key={employee.uuid || idx} className="space-y-3 p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition-all duration-200 bg-gradient-to-r from-blue-50/30 to-indigo-50/30">
+                    <div
+                      key={employee.uuid || idx}
+                      className="space-y-3 p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition-all duration-200 bg-gradient-to-r from-blue-50/30 to-indigo-50/30"
+                    >
                       {/* Employee Header */}
                       <div className="flex items-start justify-between">
                         <div className="flex-1 min-w-0">
@@ -420,10 +437,10 @@ export function OffboardingDashboard({
                               : 'bg-blue-100 text-blue-800 border-blue-200'
                           }`}
                         >
-                          {progress.isCompleted 
-                            ? 'Completed' 
-                            : progress.isOverdue 
-                            ? 'Overdue' 
+                          {progress.isCompleted
+                            ? 'Completed'
+                            : progress.isOverdue
+                            ? 'Overdue'
                             : 'Active'}
                         </Badge>
                       </div>
@@ -434,19 +451,21 @@ export function OffboardingDashboard({
                           <span className="text-gray-600">
                             Day {progress.elapsedDays} of {progress.totalDays}
                           </span>
-                          <span className={`font-medium ${
-                            progress.isCompleted 
-                              ? 'text-green-600' 
-                              : progress.remainingDays <= 3 
-                              ? 'text-red-600' 
-                              : 'text-blue-600'
-                          }`}>
-                            {progress.isCompleted 
-                              ? '100%' 
+                          <span
+                            className={`font-medium ${
+                              progress.isCompleted
+                                ? 'text-green-600'
+                                : progress.remainingDays <= 3
+                                ? 'text-red-600'
+                                : 'text-blue-600'
+                            }`}
+                          >
+                            {progress.isCompleted
+                              ? '100%'
                               : `${Math.round(progress.progressPercentage)}%`}
                           </span>
                         </div>
-                        
+
                         <div className="relative">
                           <div className="h-3 w-full bg-gray-200 rounded-full overflow-hidden">
                             <div
@@ -460,12 +479,15 @@ export function OffboardingDashboard({
                                   : 'bg-gradient-to-r from-blue-400 to-indigo-500'
                               } rounded-full`}
                               style={{
-                                width: `${Math.min(100, progress.progressPercentage)}%`,
+                                width: `${Math.min(
+                                  100,
+                                  progress.progressPercentage
+                                )}%`,
                               }}
                             />
                           </div>
                           {/* Progress indicator dot */}
-                          <div 
+                          <div
                             className={`absolute top-1/2 transform -translate-y-1/2 w-2 h-2 rounded-full border-2 border-white shadow-sm ${
                               progress.isCompleted
                                 ? 'bg-green-500'
@@ -476,7 +498,10 @@ export function OffboardingDashboard({
                                 : 'bg-blue-500'
                             }`}
                             style={{
-                              left: `calc(${Math.min(100, progress.progressPercentage)}% - 4px)`,
+                              left: `calc(${Math.min(
+                                100,
+                                progress.progressPercentage
+                              )}% - 4px)`,
                             }}
                           />
                         </div>
@@ -506,18 +531,21 @@ export function OffboardingDashboard({
 
                       {/* Remaining Days Highlight */}
                       {!progress.isCompleted && (
-                        <div className={`text-center py-2 px-3 rounded-md ${
-                          progress.remainingDays <= 3
-                            ? 'bg-red-50 text-red-700'
-                            : progress.remainingDays <= 7
-                            ? 'bg-orange-50 text-orange-700'
-                            : 'bg-blue-50 text-blue-700'
-                        }`}>
+                        <div
+                          className={`text-center py-2 px-3 rounded-md ${
+                            progress.remainingDays <= 3
+                              ? 'bg-red-50 text-red-700'
+                              : progress.remainingDays <= 7
+                              ? 'bg-orange-50 text-orange-700'
+                              : 'bg-blue-50 text-blue-700'
+                          }`}
+                        >
                           <p className="text-xs font-medium">
-                            {progress.remainingDays > 0 
-                              ? `${progress.remainingDays} ${progress.remainingDays === 1 ? 'day' : 'days'} remaining`
-                              : 'Notice period ended'
-                            }
+                            {progress.remainingDays > 0
+                              ? `${progress.remainingDays} ${
+                                  progress.remainingDays === 1 ? 'day' : 'days'
+                                } remaining`
+                              : 'Notice period ended'}
                           </p>
                         </div>
                       )}
@@ -526,12 +554,14 @@ export function OffboardingDashboard({
                 })
               )}
             </CardContent>
-            
+
             {/* Pagination Controls */}
             {totalPages > 1 && (
               <div className="flex items-center justify-between pt-4 border-t border-gray-100 px-6 pb-4">
                 <div className="text-xs text-gray-500">
-                  Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalItems)} of {totalItems} employees
+                  Showing {(currentPage - 1) * pageSize + 1}-
+                  {Math.min(currentPage * pageSize, totalItems)} of {totalItems}{' '}
+                  employees
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
@@ -560,7 +590,9 @@ export function OffboardingDashboard({
                       return (
                         <Button
                           key={pageNum}
-                          variant={currentPage === pageNum ? "default" : "outline"}
+                          variant={
+                            currentPage === pageNum ? 'default' : 'outline'
+                          }
                           size="sm"
                           onClick={() => handlePageChange(pageNum)}
                           className="h-8 w-8 p-0 text-xs"
