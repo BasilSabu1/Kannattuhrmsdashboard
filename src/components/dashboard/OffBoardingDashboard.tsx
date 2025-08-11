@@ -18,6 +18,8 @@ import {
   AlertCircle,
   Calendar,
   TrendingUp,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 import axiosInstance from '@/components/apiconfig/axios';
@@ -49,6 +51,13 @@ export function OffboardingDashboard({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<String | null>(null);
 
+  // Pagination states for Notice Period Tracker
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(10);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+  const [approvedResignations, setApprovedResignations] = useState([]);
+
   const recentRequests = resignation
     .sort((a, b) => {
       const dateA = new Date(a.created_at || 0);
@@ -56,18 +65,37 @@ export function OffboardingDashboard({
       return dateB.getTime() - dateA.getTime(); // Latest first (descending order)
     })
     .slice(0, 5);
-  //   const recentRequests = resignation;
 
-  // For the "Notice Period Tracker", get approved requests with dates
-  const approvedResignations = resignation.filter(r => 
-    r.status === 'approved'
-    // Temporarily removed date requirement to show all approved requests
-    // && r.last_working_date && r.resignation_date
-  );
+  // Fetch approved resignations with pagination
+  const getApprovedResignations = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.append('page', currentPage.toString());
+      params.append('limit', pageSize.toString());
+      params.append('status', 'approved');
+
+      const res = await axiosInstance.get(
+        `${API_URLS.RESIGNATION.GET_RESIGNATIONS}?${params.toString()}`
+      );
+
+      setApprovedResignations(res.data.data || []);
+      setTotalPages(res.data.pagination?.totalPages || 1);
+      setTotalItems(res.data.pagination?.total || 0);
+    } catch (error) {
+      console.error('Error fetching approved resignations:', error);
+      setApprovedResignations([]);
+      setTotalPages(1);
+      setTotalItems(0);
+    }
+  };
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(Math.max(1, Math.min(page, totalPages)));
+  };
 
   // Debug: Log the data to check field names
   console.log('Approved resignations:', approvedResignations);
-  console.log('All resignations:', resignation);
+  console.log('Pagination info:', { currentPage, totalPages, totalItems, pageSize });
 
   // Helper function to calculate notice period progress
   const calculateNoticeProgress = (resignationDate, lastWorkingDate) => {
@@ -140,6 +168,11 @@ export function OffboardingDashboard({
   useEffect(() => {
     getResignation();
   }, []); 
+
+  // Fetch approved resignations when page changes
+  useEffect(() => {
+    getApprovedResignations();
+  }, [currentPage]);
 
 
   console.log(resignation);
@@ -493,6 +526,63 @@ export function OffboardingDashboard({
                 })
               )}
             </CardContent>
+            
+            {/* Pagination Controls */}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-4 border-t border-gray-100 px-6 pb-4">
+                <div className="text-xs text-gray-500">
+                  Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, totalItems)} of {totalItems} employees
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage - 1)}
+                    disabled={currentPage === 1}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                      let pageNum;
+                      if (totalPages <= 5) {
+                        pageNum = i + 1;
+                      } else if (currentPage <= 3) {
+                        pageNum = i + 1;
+                      } else if (currentPage >= totalPages - 2) {
+                        pageNum = totalPages - 4 + i;
+                      } else {
+                        pageNum = currentPage - 2 + i;
+                      }
+
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={currentPage === pageNum ? "default" : "outline"}
+                          size="sm"
+                          onClick={() => handlePageChange(pageNum)}
+                          className="h-8 w-8 p-0 text-xs"
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handlePageChange(currentPage + 1)}
+                    disabled={currentPage === totalPages}
+                    className="h-8 w-8 p-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </Card>
         </div>
       </div>

@@ -166,12 +166,15 @@ function ExitRequest({ role }: ExitRequestProps) {
         console.log("Refreshing");
 
       }
+
     } catch (error) {
       console.error('Deleting resignation error', error);
       alert('Failed to delete resignation');
     }
   };
 
+
+  
   const updateresignationStatus = async (
     uuid: string,
     newStatus: 'pending' | 'approved' | 'rejected',
@@ -246,6 +249,8 @@ function ExitRequest({ role }: ExitRequestProps) {
       </div>
     );
   }
+
+
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
