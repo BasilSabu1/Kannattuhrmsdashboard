@@ -157,24 +157,22 @@ function ExitRequest({ role }: ExitRequestProps) {
       await axiosInstance.delete(
         API_URLS.RESIGNATION.DELETE_RESIGNATION_BY_UUID(uuid)
       );
+      getResignation();
       alert('Resignation deleted successfully');
+
       // If current page ends up empty after deletion, go to previous page if possible
       if (resignation.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
       } else {
         // getResignation();
-        console.log("Refreshing");
-
+        console.log('Refreshing');
       }
-
     } catch (error) {
       console.error('Deleting resignation error', error);
       alert('Failed to delete resignation');
     }
   };
 
-
-  
   const updateresignationStatus = async (
     uuid: string,
     newStatus: 'pending' | 'approved' | 'rejected',
@@ -250,7 +248,6 @@ function ExitRequest({ role }: ExitRequestProps) {
     );
   }
 
-
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
@@ -305,7 +302,6 @@ function ExitRequest({ role }: ExitRequestProps) {
                   className="pl-10"
                   autoComplete="off"
                 />
-
               </div>
               <div className="w-full md:w-48">
                 <Select
@@ -335,12 +331,15 @@ function ExitRequest({ role }: ExitRequestProps) {
               <CardTitle>Exit Requests ({totalItems})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
-              <div className="rounded-md border border-border overflow-x-auto">
+              <div className="rounded-md border border-border ">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employee</TableHead>
+                      <TableHead>Employee Id</TableHead>
+                      <TableHead>Employee Name</TableHead>
+                      <TableHead>Email</TableHead>
                       <TableHead>Department</TableHead>
+                      <TableHead>Designation</TableHead>
                       <TableHead>Resignation Date</TableHead>
                       <TableHead>Last Working Date</TableHead>
                       <TableHead>Notice Period</TableHead>
@@ -362,21 +361,24 @@ function ExitRequest({ role }: ExitRequestProps) {
                       filteredRequests.map(req => (
                         <TableRow key={req.uuid}>
                           <TableCell>
-                            <div className="font-medium">
+                            {/* <div className="font-medium">
                               {req.employee_name}
-                            </div>
-                            <div className="text-xs text-muted-foreground">
-                              {req.employee_id} • {req.designation}
-                            </div>
+                            </div> */}
+                            <div className="font-medium">{req.employee_id}</div>
                           </TableCell>
+                          <TableCell>{req.employee_name}</TableCell>
+
                           <TableCell>{req.department}</TableCell>
+                          <TableCell>{req.designation}</TableCell>
                           <TableCell>
                             {req.resignation_date && (
                               <span>
-                                {new Date(req.resignation_date).toLocaleDateString("en-GB", {
-                                  day: "2-digit",
-                                  month: "short", // or "long" for full month name
-                                  year: "numeric",
+                                {new Date(
+                                  req.resignation_date
+                                ).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: 'short', // or "long" for full month name
+                                  year: 'numeric',
                                 })}
                               </span>
                             )}
@@ -385,10 +387,12 @@ function ExitRequest({ role }: ExitRequestProps) {
                           <TableCell>
                             {req.last_working_date && (
                               <span>
-                                {new Date(req.last_working_date).toLocaleDateString("en-GB", {
-                                  day: "2-digit",
-                                  month: "short", // or "long" for full month name
-                                  year: "numeric",
+                                {new Date(
+                                  req.last_working_date
+                                ).toLocaleDateString('en-GB', {
+                                  day: '2-digit',
+                                  month: 'short', // or "long" for full month name
+                                  year: 'numeric',
                                 })}
                               </span>
                             )}
@@ -406,14 +410,18 @@ function ExitRequest({ role }: ExitRequestProps) {
                                 onValueChange={value =>
                                   updateresignationStatus(
                                     req.uuid,
-                                    value as 'pending' | 'approved' | 'rejected',
+                                    value as
+                                      | 'pending'
+                                      | 'approved'
+                                      | 'rejected',
                                     req.status
                                   )
                                 }
                               >
                                 <SelectTrigger
-                                  className={`w-28 cursor-pointer rounded-md border px-2 py-1 text-center font-semibold ${statusColor[req.status]
-                                    }`}
+                                  className={`w-28 cursor-pointer rounded-md border px-2 py-1 text-center font-semibold ${
+                                    statusColor[req.status]
+                                  }`}
                                 >
                                   <SelectValue />
                                 </SelectTrigger>
@@ -432,8 +440,9 @@ function ExitRequest({ role }: ExitRequestProps) {
                             ) : (
                               // Admin just sees text badge
                               <span
-                                className={`w-28 inline-block rounded-md border px-2 py-1 text-center font-semibold ${statusColor[req.status]
-                                  }`}
+                                className={`w-28 inline-block rounded-md border px-2 py-1 text-center font-semibold ${
+                                  statusColor[req.status]
+                                }`}
                               >
                                 {statusText[req.status]}
                               </span>
@@ -461,14 +470,19 @@ function ExitRequest({ role }: ExitRequestProps) {
               <div className="flex items-center justify-between px-6 py-4 border-t">
                 <div className="text-sm text-muted-foreground">
                   Showing {(currentPage - 1) * pageSize + 1} to{' '}
-                  {Math.min(currentPage * pageSize, totalItems)} of {totalItems} results
+                  {Math.min(currentPage * pageSize, totalItems)} of {totalItems}{' '}
+                  results
                 </div>
                 <Pagination>
                   <PaginationContent>
                     <PaginationItem>
                       <PaginationPrevious
                         onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        className={currentPage <= 1 ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        className={
+                          currentPage <= 1
+                            ? 'pointer-events-none opacity-50'
+                            : 'cursor-pointer'
+                        }
                       />
                     </PaginationItem>
 
@@ -492,8 +506,14 @@ function ExitRequest({ role }: ExitRequestProps) {
 
                     <PaginationItem>
                       <PaginationNext
-                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
-                        className={currentPage >= totalPages ? 'pointer-events-none opacity-50' : 'cursor-pointer'}
+                        onClick={() =>
+                          setCurrentPage(p => Math.min(totalPages, p + 1))
+                        }
+                        className={
+                          currentPage >= totalPages
+                            ? 'pointer-events-none opacity-50'
+                            : 'cursor-pointer'
+                        }
                       />
                     </PaginationItem>
                   </PaginationContent>
