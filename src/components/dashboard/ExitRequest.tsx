@@ -8,7 +8,6 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Button } from '../ui/button';
 import {
@@ -18,9 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Eye, Trash2, AlertCircle, Loader2 } from 'lucide-react';
+import { Trash2, AlertCircle, Loader2, Search } from 'lucide-react';
 
-import { Search } from 'lucide-react';
 import axiosInstance from '@/components/apiconfig/axios';
 import { API_URLS } from '@/components/apiconfig/api_urls';
 import {
@@ -53,8 +51,10 @@ interface Resignation {
   uuid: string;
   employee_name: string;
   employee_id: string;
+  email: String;
   department: string;
   designation: string;
+  branch: string;
   resignation_date: string;
   last_working_date: string;
   notice_period: number;
@@ -85,6 +85,7 @@ function ExitRequest({ role }: ExitRequestProps) {
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
   const searchInputRef = useRef<HTMLInputElement>(null);
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
   // Debounced search effect with better handling for deletions
   useEffect(() => {
@@ -100,32 +101,44 @@ function ExitRequest({ role }: ExitRequestProps) {
 
   const getResignation = async () => {
     try {
-      // Don't show loading for search operations to avoid blocking input
-      const isSearchOperation = searchQuery.trim() !== '';
-      if (!isSearchOperation) {
-        setLoading(true);
-      }
-
+      setLoading(true);
       setError(null);
       const params = new URLSearchParams();
       params.append('page', currentPage.toString());
       params.append('limit', pageSize.toString());
+
+      // Add search parameter if search query exists
       if (searchQuery.trim()) {
-        params.append('search', searchQuery.trim());
+        params.append('employee_name', searchQuery.trim());
       }
+
+      // Add status filter parameter if not 'all'
       if (statusFilter !== 'all') {
         params.append('status', statusFilter);
       }
+
+      console.log(
+        'API Call URL:',
+        `${API_URLS.RESIGNATION.GET_RESIGNATIONS}?${params.toString()}`
+      );
 
       const res = await axiosInstance.get<ApiResponse>(
         `${API_URLS.RESIGNATION.GET_RESIGNATIONS}?${params.toString()}`
       );
 
-      setResignation(res.data.data || []);
+      // ✅ Sort by resignation_date (latest first)
+      const sortedData = (res.data.data || [])
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        );
+
+      setResignation(sortedData);
       setTotalPages(res.data.pagination.totalPages || 1);
       setTotalItems(res.data.pagination.total || 0);
     } catch (error) {
-      console.error('Error fetching resignation');
+      console.error('Error fetching resignation:', error);
       setError('Failed to load exit requests');
       setResignation([]);
       setTotalPages(1);
@@ -143,7 +156,7 @@ function ExitRequest({ role }: ExitRequestProps) {
 
   useEffect(() => {
     getResignation();
-  }, [currentPage, searchQuery, statusFilter]); // Use searchQuery instead of search
+  }, [currentPage, searchQuery, statusFilter, pageSize]);
 
   const handleDeleteResignation = async (uuid: string) => {
     if (
@@ -157,16 +170,14 @@ function ExitRequest({ role }: ExitRequestProps) {
       await axiosInstance.delete(
         API_URLS.RESIGNATION.DELETE_RESIGNATION_BY_UUID(uuid)
       );
-      getResignation();
-      alert('Resignation deleted successfully');
 
       // If current page ends up empty after deletion, go to previous page if possible
       if (resignation.length === 1 && currentPage > 1) {
         setCurrentPage(currentPage - 1);
       } else {
-        // getResignation();
-        console.log('Refreshing');
+        getResignation();
       }
+      alert('Resignation deleted successfully');
     } catch (error) {
       console.error('Deleting resignation error', error);
       alert('Failed to delete resignation');
@@ -178,18 +189,24 @@ function ExitRequest({ role }: ExitRequestProps) {
     newStatus: 'pending' | 'approved' | 'rejected',
     prevStatus: 'pending' | 'approved' | 'rejected'
   ) => {
+    setStatusUpdating(uuid);
     setResignation(prev =>
       prev.map(item =>
         item.uuid === uuid ? { ...item, status: newStatus } : item
       )
     );
+
     try {
       await axiosInstance.patch(
         API_URLS.RESIGNATION.RESIGNATION_STATUS_UPDATE_BY_UUID(uuid),
         { status: newStatus }
       );
-      await getResignation();
-      alert('Successfully updated status');
+      setTimeout(() => {
+        setStatusUpdating(null);
+      }, 2000);
+
+      await refreshResignationSilently();
+      // alert('Successfully updated status');
     } catch (error) {
       console.error('Failed to update status', error);
       alert('Failed to update status');
@@ -198,17 +215,39 @@ function ExitRequest({ role }: ExitRequestProps) {
           item.uuid === uuid ? { ...item, status: prevStatus } : item
         )
       );
+      setStatusUpdating(null);
     }
   };
 
-  const filteredRequests = resignation.filter(req => {
-    const matchesSearch =
-      req.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      req.employee_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (req.department?.toLowerCase() || '').includes(searchQuery.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || req.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const refreshResignationSilently = async () => {
+    try {
+      const res = await axiosInstance.get<ApiResponse>(
+        `${API_URLS.RESIGNATION.GET_RESIGNATIONS}?page=${currentPage}&limit=${pageSize}`
+      );
+      setResignation(res.data.data || []);
+    } catch (e) {
+      console.error('Silent refresh failed', e);
+    }
+  };
+
+  // const params = new URLSearchParams();
+  // params.append('page', currentPage.toString());
+  // params.append('limit', pageSize.toString());
+  // if (searchQuery.trim()) {
+  //   params.append('search', searchQuery.trim());
+  // }
+  // if (statusFilter !== 'all') {
+  //   params.append('status', statusFilter);
+  // }
+
+  // const filteredRequests = resignation.filter(req => {
+  //   const matchesSearch =
+  //     req.employee_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  //     req.employee_id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+  //     (req.department?.toLowerCase() || '').includes(searchQuery.toLowerCase());
+  //   const matchesStatus = statusFilter === 'all' || req.status === statusFilter;
+  //   return matchesSearch && matchesStatus;
+  // });
 
   const getPageNumbers = () => {
     const pages = [];
@@ -288,7 +327,7 @@ function ExitRequest({ role }: ExitRequestProps) {
                 <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input
                   ref={searchInputRef}
-                  placeholder="Search by name, ID, or department..."
+                  placeholder="Search by name..."
                   value={search}
                   onChange={e => {
                     setSearch(e.target.value);
@@ -330,141 +369,134 @@ function ExitRequest({ role }: ExitRequestProps) {
             <CardHeader>
               <CardTitle>Exit Requests ({totalItems})</CardTitle>
             </CardHeader>
-            <CardContent className="p-0">
-              <div className="rounded-md border border-border ">
-                <Table>
-                  <TableHeader>
+            <CardContent>
+              <Table className="overflow-scroll">
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Employee Id</TableHead>
+                    <TableHead>Employee Name</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Department</TableHead>
+                    <TableHead>Designation</TableHead>
+                    <TableHead>Branch</TableHead>
+                    <TableHead>Resignation Date</TableHead>
+                    <TableHead>Last Working Date</TableHead>
+                    <TableHead>Notice Period</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {resignation.length === 0 ? (
                     <TableRow>
-                      <TableHead>Employee Id</TableHead>
-                      <TableHead>Employee Name</TableHead>
-                      <TableHead>Email</TableHead>
-                      <TableHead>Department</TableHead>
-                      <TableHead>Designation</TableHead>
-                      <TableHead>Resignation Date</TableHead>
-                      <TableHead>Last Working Date</TableHead>
-                      <TableHead>Notice Period</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Actions</TableHead>
+                      <TableCell
+                        colSpan={10}
+                        className="text-center text-muted-foreground"
+                      >
+                        No exit requests found.
+                      </TableCell>
                     </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredRequests.length === 0 ? (
-                      <TableRow>
-                        <TableCell
-                          colSpan={7}
-                          className="text-center text-muted-foreground"
-                        >
-                          No exit requests found.
+                  ) : (
+                    resignation.map(req => (
+                      <TableRow key={req.uuid}>
+                        <TableCell>
+                          <div className="font-medium">{req.employee_id}</div>
                         </TableCell>
-                      </TableRow>
-                    ) : (
-                      filteredRequests.map(req => (
-                        <TableRow key={req.uuid}>
-                          <TableCell>
-                            {/* <div className="font-medium">
-                              {req.employee_name}
-                            </div> */}
-                            <div className="font-medium">{req.employee_id}</div>
-                          </TableCell>
-                          <TableCell>{req.employee_name}</TableCell>
-
-                          <TableCell>{req.department}</TableCell>
-                          <TableCell>{req.designation}</TableCell>
-                          <TableCell>
-                            {req.resignation_date && (
-                              <span>
-                                {new Date(
-                                  req.resignation_date
-                                ).toLocaleDateString('en-GB', {
-                                  day: '2-digit',
-                                  month: 'short', // or "long" for full month name
-                                  year: 'numeric',
-                                })}
-                              </span>
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            {req.last_working_date && (
-                              <span>
-                                {new Date(
-                                  req.last_working_date
-                                ).toLocaleDateString('en-GB', {
-                                  day: '2-digit',
-                                  month: 'short', // or "long" for full month name
-                                  year: 'numeric',
-                                })}
-                              </span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <span className="font-semibold">
-                              {req.notice_period} days
+                        <TableCell>{req.employee_name}</TableCell>
+                        <TableCell>{req.email}</TableCell>
+                        <TableCell>{req.department}</TableCell>
+                        <TableCell>{req.designation}</TableCell>
+                        <TableCell>{req.branch}</TableCell>
+                        <TableCell>
+                          {req.resignation_date && (
+                            <span>
+                              {new Date(
+                                req.resignation_date
+                              ).toLocaleDateString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
                             </span>
-                          </TableCell>
-                          <TableCell>
-                            {role === 'hr' ? (
-                              // HR sees dropdown for updating status
-                              <Select
-                                value={req.status}
-                                onValueChange={value =>
-                                  updateresignationStatus(
-                                    req.uuid,
-                                    value as
-                                      | 'pending'
-                                      | 'approved'
-                                      | 'rejected',
-                                    req.status
-                                  )
-                                }
-                              >
-                                <SelectTrigger
-                                  className={`w-28 cursor-pointer rounded-md border px-2 py-1 text-center font-semibold ${
-                                    statusColor[req.status]
-                                  }`}
-                                >
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="pending">
-                                    Pending
-                                  </SelectItem>
-                                  <SelectItem value="approved">
-                                    Approved
-                                  </SelectItem>
-                                  <SelectItem value="rejected">
-                                    Rejected
-                                  </SelectItem>
-                                </SelectContent>
-                              </Select>
-                            ) : (
-                              // Admin just sees text badge
-                              <span
-                                className={`w-28 inline-block rounded-md border px-2 py-1 text-center font-semibold ${
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {req.last_working_date && (
+                            <span>
+                              {new Date(
+                                req.last_working_date
+                              ).toLocaleDateString('en-GB', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric',
+                              })}
+                            </span>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-semibold">
+                            {req.notice_period} days
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {statusUpdating === req.uuid ? (
+                            <div className="flex justify-center">
+                              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                            </div>
+                          ) : role === 'hr' ? (
+                            <Select
+                              value={req.status}
+                              onValueChange={value =>
+                                updateresignationStatus(
+                                  req.uuid,
+                                  value as 'pending' | 'approved' | 'rejected',
+                                  req.status
+                                )
+                              }
+                            >
+                              <SelectTrigger
+                                className={`w-28 cursor-pointer rounded-md border px-2 py-1 text-center font-semibold ${
                                   statusColor[req.status]
                                 }`}
                               >
-                                {statusText[req.status]}
-                              </span>
-                            )}
-                          </TableCell>
-
-                          <TableCell>
-                            <Button
-                              onClick={() => handleDeleteResignation(req.uuid)}
-                              variant="delete"
-                              size="sm"
-                              className="gap-2 "
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="pending">Pending</SelectItem>
+                                <SelectItem value="approved">
+                                  Approved
+                                </SelectItem>
+                                <SelectItem value="rejected">
+                                  Rejected
+                                </SelectItem>
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <span
+                              className={`w-28 inline-block rounded-md border px-2 py-1 text-center font-semibold ${
+                                statusColor[req.status]
+                              }`}
                             >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
+                              {statusText[req.status]}
+                            </span>
+                          )}
+                        </TableCell>
+
+                        <TableCell>
+                          <Button
+                            onClick={() => handleDeleteResignation(req.uuid)}
+                            variant="delete"
+                            size="sm"
+                            className="gap-2 "
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </CardContent>
             {totalPages > 1 && (
               <div className="flex items-center justify-between px-6 py-4 border-t">
