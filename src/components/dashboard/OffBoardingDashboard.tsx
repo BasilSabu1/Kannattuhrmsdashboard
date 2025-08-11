@@ -16,6 +16,8 @@ import {
   FileText,
   Loader2,
   AlertCircle,
+  Calendar,
+  TrendingUp,
 } from 'lucide-react';
 
 import axiosInstance from '@/components/apiconfig/axios';
@@ -56,10 +58,64 @@ export function OffboardingDashboard({
     .slice(0, 5);
   //   const recentRequests = resignation;
 
-  // For the "Notice Period Tracker", get the first approved request with notice
-  const inNotice = recentRequests.find(
-    r => r.status === 'approved' && r.noticeTotal !== undefined
+  // For the "Notice Period Tracker", get approved requests with dates
+  const approvedResignations = resignation.filter(r => 
+    r.status === 'approved'
+    // Temporarily removed date requirement to show all approved requests
+    // && r.last_working_date && r.resignation_date
   );
+
+  // Debug: Log the data to check field names
+  console.log('Approved resignations:', approvedResignations);
+  console.log('All resignations:', resignation);
+
+  // Helper function to calculate notice period progress
+  const calculateNoticeProgress = (resignationDate, lastWorkingDate) => {
+    // Handle missing dates
+    if (!resignationDate || !lastWorkingDate) {
+      return {
+        totalDays: 30, // Default 30 days
+        elapsedDays: 15, // Default halfway
+        remainingDays: 15,
+        progressPercentage: 50,
+        isCompleted: false,
+        isOverdue: false
+      };
+    }
+
+    const currentDate = new Date();
+    const startDate = new Date(resignationDate);
+    const endDate = new Date(lastWorkingDate);
+    
+    const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const elapsedDays = Math.ceil((currentDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+    const remainingDays = Math.max(0, totalDays - elapsedDays);
+    
+    const progressPercentage = Math.min(100, Math.max(0, (elapsedDays / totalDays) * 100));
+    
+    return {
+      totalDays: Math.max(1, totalDays), // Ensure at least 1 day
+      elapsedDays: Math.max(0, elapsedDays),
+      remainingDays,
+      progressPercentage,
+      isCompleted: currentDate >= endDate,
+      isOverdue: currentDate > endDate
+    };
+  };
+
+  // Format date helper
+  const formatDate = (dateString) => {
+    if (!dateString) return 'Not set';
+    try {
+      return new Date(dateString).toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+      });
+    } catch (error) {
+      return 'Invalid date';
+    }
+  };
 
   const getResignation = async () => {
     try {
@@ -83,7 +139,11 @@ export function OffboardingDashboard({
 
   useEffect(() => {
     getResignation();
-  }, []);
+  }, []); 
+
+
+  console.log(resignation);
+  
 
   const totalRequests = resignation.length;
 
@@ -270,84 +330,167 @@ export function OffboardingDashboard({
             </CardContent>
           </Card>
 
-          {/* Notice Period Tracker */}
+          {/* Enhanced Notice Period Tracker */}
           <Card className="shadow-md h-full">
-            <CardHeader>
-              <CardTitle>Notice Period Tracker</CardTitle>
+            <CardHeader className="pb-4">
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="h-5 w-5 text-blue-600" />
+                  Notice Period Tracker
+                </CardTitle>
+                <Badge variant="outline" className="text-xs">
+                  {approvedResignations.length} Active
+                </Badge>
+              </div>
             </CardHeader>
-            <CardContent>
-              {inNotice ? (
-                <div>
-                  <div className="flex justify-between items-center mb-2">
-                    <span className="font-medium">
-                      {inNotice.employee_name}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                      {inNotice.noticeDays ?? 0}/{inNotice.noticeTotal} days
-                    </span>
-                  </div>
-                  {/* Progress Bar */}
-                  <div className="h-2 w-full bg-gray-200 rounded">
-                    <div
-                      className="h-2 bg-blue-500 rounded transition-all"
-                      style={{
-                        width: `${
-                          inNotice.noticeTotal && inNotice.noticeTotal > 0
-                            ? ((inNotice.noticeDays ?? 0) /
-                                inNotice.noticeTotal) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between items-center mb-2 mt-5">
-                    <span className="font-medium">{inNotice.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {inNotice.noticeDays ?? 0}/{inNotice.noticeTotal} days
-                    </span>
-                  </div>
-                  {/* Progress Bar */}
-                  <div className="h-2 w-full bg-gray-200 rounded">
-                    <div
-                      className="h-2 bg-blue-500 rounded transition-all"
-                      style={{
-                        width: `${
-                          inNotice.noticeTotal && inNotice.noticeTotal > 0
-                            ? ((inNotice.noticeDays ?? 0) /
-                                inNotice.noticeTotal) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
-                  <div className="flex justify-between items-center mb-2 mt-5">
-                    <span className="font-medium">{inNotice.name}</span>
-                    <span className="text-xs text-muted-foreground">
-                      {inNotice.noticeDays ?? 0}/{inNotice.noticeTotal} days
-                    </span>
-                  </div>
-                  {/* Progress Bar */}
-                  <div className="h-2 w-full bg-gray-200 rounded">
-                    <div
-                      className="h-2 bg-blue-500 rounded transition-all"
-                      style={{
-                        width: `${
-                          inNotice.noticeTotal && inNotice.noticeTotal > 0
-                            ? ((inNotice.noticeDays ?? 0) /
-                                inNotice.noticeTotal) *
-                              100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
+            <CardContent className="space-y-4 max-h-96 overflow-y-auto">
+              {approvedResignations.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-8 text-center">
+                  <Calendar className="h-12 w-12 text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground text-sm font-medium">
+                    No employees in notice period
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Approved resignations will appear here
+                  </p>
                 </div>
               ) : (
-                <div className="text-muted-foreground text-sm">
-                  No employee in notice period.
-                </div>
+                approvedResignations.map((employee, idx) => {
+                  const progress = calculateNoticeProgress(
+                    employee.resignation_date, 
+                    employee.last_working_date
+                  );
+                  
+                  return (
+                    <div key={employee.uuid || idx} className="space-y-3 p-4 rounded-lg border border-gray-100 hover:border-gray-200 transition-all duration-200 bg-gradient-to-r from-blue-50/30 to-indigo-50/30">
+                      {/* Employee Header */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1 min-w-0">
+                          <h4 className="font-semibold text-gray-900 truncate">
+                            {employee.employee_name}
+                          </h4>
+                          <div className="flex flex-wrap items-center gap-2 mt-1">
+                            <span className="text-xs text-gray-600 bg-gray-100 px-2 py-1 rounded-full">
+                              {employee.department}
+                            </span>
+                            <span className="text-xs text-gray-600">
+                              {employee.designation}
+                            </span>
+                          </div>
+                        </div>
+                        <Badge
+                          className={`ml-2 ${
+                            progress.isCompleted
+                              ? 'bg-green-100 text-green-800 border-green-200'
+                              : progress.isOverdue
+                              ? 'bg-red-100 text-red-800 border-red-200'
+                              : 'bg-blue-100 text-blue-800 border-blue-200'
+                          }`}
+                        >
+                          {progress.isCompleted 
+                            ? 'Completed' 
+                            : progress.isOverdue 
+                            ? 'Overdue' 
+                            : 'Active'}
+                        </Badge>
+                      </div>
+
+                      {/* Progress Bar */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center text-xs">
+                          <span className="text-gray-600">
+                            Day {progress.elapsedDays} of {progress.totalDays}
+                          </span>
+                          <span className={`font-medium ${
+                            progress.isCompleted 
+                              ? 'text-green-600' 
+                              : progress.remainingDays <= 3 
+                              ? 'text-red-600' 
+                              : 'text-blue-600'
+                          }`}>
+                            {progress.isCompleted 
+                              ? '100%' 
+                              : `${Math.round(progress.progressPercentage)}%`}
+                          </span>
+                        </div>
+                        
+                        <div className="relative">
+                          <div className="h-3 w-full bg-gray-200 rounded-full overflow-hidden">
+                            <div
+                              className={`h-full transition-all duration-500 ease-out ${
+                                progress.isCompleted
+                                  ? 'bg-gradient-to-r from-green-400 to-green-500'
+                                  : progress.isOverdue
+                                  ? 'bg-gradient-to-r from-red-400 to-red-500'
+                                  : progress.remainingDays <= 3
+                                  ? 'bg-gradient-to-r from-orange-400 to-red-400'
+                                  : 'bg-gradient-to-r from-blue-400 to-indigo-500'
+                              } rounded-full`}
+                              style={{
+                                width: `${Math.min(100, progress.progressPercentage)}%`,
+                              }}
+                            />
+                          </div>
+                          {/* Progress indicator dot */}
+                          <div 
+                            className={`absolute top-1/2 transform -translate-y-1/2 w-2 h-2 rounded-full border-2 border-white shadow-sm ${
+                              progress.isCompleted
+                                ? 'bg-green-500'
+                                : progress.isOverdue
+                                ? 'bg-red-500'
+                                : progress.remainingDays <= 3
+                                ? 'bg-orange-500'
+                                : 'bg-blue-500'
+                            }`}
+                            style={{
+                              left: `calc(${Math.min(100, progress.progressPercentage)}% - 4px)`,
+                            }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Date Information */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2 border-t border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3 w-3 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Started</p>
+                            <p className="text-xs font-medium text-gray-700">
+                              {formatDate(employee.resignation_date)}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Calendar className="h-3 w-3 text-gray-400" />
+                          <div>
+                            <p className="text-xs text-gray-500">Last Day</p>
+                            <p className="text-xs font-medium text-gray-700">
+                              {formatDate(employee.last_working_date)}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Remaining Days Highlight */}
+                      {!progress.isCompleted && (
+                        <div className={`text-center py-2 px-3 rounded-md ${
+                          progress.remainingDays <= 3
+                            ? 'bg-red-50 text-red-700'
+                            : progress.remainingDays <= 7
+                            ? 'bg-orange-50 text-orange-700'
+                            : 'bg-blue-50 text-blue-700'
+                        }`}>
+                          <p className="text-xs font-medium">
+                            {progress.remainingDays > 0 
+                              ? `${progress.remainingDays} ${progress.remainingDays === 1 ? 'day' : 'days'} remaining`
+                              : 'Notice period ended'
+                            }
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })
               )}
             </CardContent>
           </Card>

@@ -164,7 +164,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/use-auth';
-import { Users, LogOut, Menu, User, Shield } from 'lucide-react';
+import { Users, LogOut, Menu, User, Shield, UserX, ClipboardList } from 'lucide-react';
 import { OnboardingDashboard } from './OnboardingDashboard';
 import { OffboardingDashboard } from './OffBoardingDashboard';
 import HRManagement from './HRManagement';
@@ -186,8 +186,8 @@ const AdminDashboard = () => {
   const sidebarItems: SidebarItem[] = [
     { id: 'onboarding', label: 'Onboarding', icon: Users },
     { id: 'hr-management', label: 'HR Management', icon: User },
-    { id: 'offboarding', label: 'Offboarding', icon: LogOut },
-    { id: 'exit-request', label: 'Exit Requests', icon: LogOut },
+    { id: 'offboarding', label: 'Offboarding', icon: UserX },
+    { id: 'exit-request', label: 'Exit Requests', icon: ClipboardList },
   ];
 
   const handleLogout = () => {
@@ -307,7 +307,7 @@ const AdminDashboard = () => {
             <div className="flex items-center gap-4">
               <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
                 <User className="h-4 w-4" />
-                <span>Admin User</span>
+                <span>Admin</span>
               </div>
             </div>
           </div>

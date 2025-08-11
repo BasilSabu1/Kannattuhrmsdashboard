@@ -24,6 +24,9 @@ interface ApplicationDocument {
   uploaded_at: string;
 }
 
+import JSZip from 'jszip';
+
+
 interface SellerDetails {
   id: number;
   address_line: string;
@@ -111,6 +114,27 @@ export function OnboardingDashboard() {
   const { toast } = useToast();
   const [searchInput, setSearchInput] = useState(""); // For immediate UI updates
   const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [allBranches, setAllBranches] = useState<string[]>([]); // New state for all available branches
+
+  // Fetch all branches for the dropdown (runs only once on mount)
+  const fetchAllBranches = async () => {
+    try {
+      const response = await axiosInstance.get(`${API_URLS.USERS.GET_USERS}?limit=1000`);
+      const allApplications = response.data.data;
+      const branches = [...new Set(allApplications.map((app: OnboardingApplication) => app.education_employment?.branch).filter(Boolean))] as string[];
+      setAllBranches(branches);
+    } catch (err) {
+      console.error('Error fetching all branches:', err);
+      // Fallback to empty array if fetch fails
+      setAllBranches([]);
+    }
+  };
+
+  // Fetch all branches on component mount
+  useEffect(() => {
+    fetchAllBranches();
+  }, []);
+
   // Build query parameters for API call
   const buildQueryParams = () => {
     const params = new URLSearchParams();
@@ -143,6 +167,8 @@ export function OnboardingDashboard() {
 
     return params.toString();
   };
+
+
 
 
 
@@ -243,14 +269,13 @@ export function OnboardingDashboard() {
       'Application ID': app.application_id,
       'Employee Name': app.full_name,
       'Email': app.email,
-      'Department': app.education_employment?.branch || 'N/A',
+      'Branch': app.education_employment?.branch || 'N/A',
       'Position': app.education_employment?.designation || 'N/A',
       'Status': app.status,
       'Submitted Date': format(new Date(app.created_at), "MM/dd/yyyy"),
       'Documents Count': app.document_uploads?.images.length || 0,
       'Blood Group': app.blood_group,
-      'Mobile': app.mobile_number,
-      'Emergency Contact': app.emergency_contact_number
+      'Mobile': `'${app.mobile_number}`, // Add single quote prefix to prevent scientific notation
     }));
 
     if (downloadFormat === 'excel') {
@@ -261,6 +286,11 @@ export function OnboardingDashboard() {
       title: `Download Started`,
       description: `Exporting ${applications.length} records in Excel format.`,
     });
+  };
+
+  const isPDFDocument = (doc: ApplicationDocument) => {
+    return doc.original_filename.toLowerCase().endsWith('.pdf') ||
+      doc.document_type.toLowerCase().includes('pdf');
   };
 
   const downloadExcel = (data: any[]) => {
@@ -280,8 +310,14 @@ export function OnboardingDashboard() {
           return '';
         }
 
-        // Convert to string and handle commas and quotes
+        // Convert to string
         const stringValue = String(value);
+
+        // For mobile numbers specifically, ensure they're treated as text
+        if (header === 'Mobile' && stringValue.startsWith("'")) {
+          // Already prefixed with quote, wrap in quotes and escape
+          return `"${stringValue}"`;
+        }
 
         // If value contains comma, newline, or quote, wrap in quotes and escape internal quotes
         if (stringValue.includes(',') || stringValue.includes('\n') || stringValue.includes('"')) {
@@ -310,31 +346,202 @@ export function OnboardingDashboard() {
     window.URL.revokeObjectURL(url);
   };
 
-  const downloadDocument = (doc: ApplicationDocument) => {
-    const link = document.createElement('a');
-    link.href = doc.image;
-    link.download = doc.original_filename;
-    link.target = '_blank';
-    link.click();
+  const downloadDocument = async (doc: ApplicationDocument) => {
+    try {
+      const response = await fetch(doc.image);
+      const blob = await response.blob();
 
-    toast({
-      title: "Document Downloaded",
-      description: `${doc.original_filename} has been downloaded.`,
-    });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = doc.original_filename;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Document Downloaded",
+        description: `${doc.original_filename} has been downloaded.`,
+      });
+    } catch (error) {
+      console.error('Download failed:', error);
+      toast({
+        title: "Download Failed",
+        description: "Unable to download the document. Please try again.",
+        variant: "destructive"
+      });
+    }
   };
 
-  const downloadAllDocuments = (applicationId: string) => {
+  // Add this import at the top of your file (you'll need to install jszip)
+
+  // Replace the existing downloadAllDocuments function with this updated version
+  const downloadAllDocuments = async (applicationId: string) => {
     const app = applications.find(a => a.application_id === applicationId);
-    if (!app || !app.document_uploads) return;
+    if (!app || !app.document_uploads || app.document_uploads.images.length === 0) return;
 
-    app.document_uploads.images.forEach((doc, index) => {
-      setTimeout(() => downloadDocument(doc), index * 500);
-    });
+    try {
+      // Show loading toast
+      toast({
+        title: "Preparing Download",
+        description: `Preparing ${app.document_uploads.images.length} documents for download...`,
+      });
 
-    toast({
-      title: "Bulk Download Started",
-      description: `Downloading all ${app.document_uploads.images.length} documents for ${app.full_name}.`,
-    });
+      const zip = new JSZip();
+      const folderName = `${app.full_name.replace(/[^a-zA-Z0-9]/g, '_')}_${applicationId}_Documents`;
+      const folder = zip.folder(folderName);
+
+      let successCount = 0;
+      let failedFiles: string[] = [];
+
+      // Download documents one by one with retry logic
+      for (let index = 0; index < app.document_uploads.images.length; index++) {
+        const doc = app.document_uploads.images[index];
+
+        try {
+          // Update progress
+          toast({
+            title: "Downloading...",
+            description: `Processing ${index + 1} of ${app.document_uploads.images.length} documents...`,
+          });
+
+          // Retry logic for each file
+          let blob: Blob | null = null;
+          let attempts = 0;
+          const maxAttempts = 3;
+
+          while (attempts < maxAttempts && !blob) {
+            try {
+              const response = await fetch(doc.image, {
+                method: 'GET',
+                headers: {
+                  'Accept': '*/*',
+                },
+                mode: 'cors',
+              });
+
+              if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+              }
+
+              blob = await response.blob();
+
+              // Validate that we actually got content
+              if (blob.size === 0) {
+                throw new Error('Empty file received');
+              }
+
+            } catch (fetchError) {
+              attempts++;
+              console.warn(`Attempt ${attempts} failed for ${doc.original_filename}:`, fetchError);
+
+              if (attempts < maxAttempts) {
+                // Wait before retry (exponential backoff)
+                await new Promise(resolve => setTimeout(resolve, 1000 * attempts));
+              }
+            }
+          }
+
+          if (blob) {
+            // Create a safe filename
+            let filename = doc.original_filename;
+            if (!filename || filename.trim() === '') {
+              const extension = doc.image.split('.').pop() || 'jpg';
+              filename = `${formatDocumentType(doc.document_type)}_${index + 1}.${extension}`;
+            }
+
+            // Ensure filename is safe for zip and unique
+            filename = filename.replace(/[^a-zA-Z0-9.-]/g, '_');
+
+            // Check if filename already exists and make it unique
+            let finalFilename = filename;
+            let counter = 1;
+            while (folder?.file(finalFilename)) {
+              const lastDotIndex = filename.lastIndexOf('.');
+              if (lastDotIndex > 0) {
+                const name = filename.substring(0, lastDotIndex);
+                const extension = filename.substring(lastDotIndex);
+                finalFilename = `${name}_${counter}${extension}`;
+              } else {
+                finalFilename = `${filename}_${counter}`;
+              }
+              counter++;
+            }
+
+            folder?.file(finalFilename, blob);
+            successCount++;
+
+            console.log(`Successfully added to zip: ${finalFilename} (${blob.size} bytes)`);
+          } else {
+            failedFiles.push(doc.original_filename || `Document ${index + 1}`);
+            console.error(`Failed to download after ${maxAttempts} attempts: ${doc.original_filename}`);
+          }
+
+        } catch (error) {
+          failedFiles.push(doc.original_filename || `Document ${index + 1}`);
+          console.error(`Failed to process document: ${doc.original_filename}`, error);
+        }
+
+        // Small delay between downloads to avoid overwhelming the server
+        if (index < app.document_uploads.images.length - 1) {
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+      }
+
+      if (successCount === 0) {
+        toast({
+          title: "Download Failed",
+          description: "No documents could be downloaded. Please check your internet connection and try again.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Show final preparation message
+      toast({
+        title: "Finalizing ZIP",
+        description: `Creating ZIP file with ${successCount} documents...`,
+      });
+
+      // Generate and download the zip file
+      const zipBlob = await zip.generateAsync({
+        type: "blob",
+        compression: "DEFLATE",
+        compressionOptions: {
+          level: 6
+        }
+      });
+
+      const url = window.URL.createObjectURL(zipBlob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${folderName}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      // Show completion message
+      let message = `Successfully downloaded ${successCount} of ${app.document_uploads.images.length} documents for ${app.full_name} as a ZIP file.`;
+      if (failedFiles.length > 0) {
+        message += ` ${failedFiles.length} files failed to download: ${failedFiles.join(', ')}`;
+      }
+
+      toast({
+        title: "Download Complete",
+        description: message,
+        variant: failedFiles.length > 0 ? "destructive" : "default"
+      });
+
+    } catch (error) {
+      console.error('Bulk download failed:', error);
+      toast({
+        title: "Download Failed",
+        description: "Unable to create ZIP file. Please try downloading documents individually.",
+        variant: "destructive"
+      });
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -365,15 +572,27 @@ export function OnboardingDashboard() {
     );
   };
 
-  const getDocumentIcon = (type: string) => {
-    if (type.includes('image') || ['passport', 'aadhaar_front', 'aadhaar_back', 'voter_id', 'pan'].includes(type)) {
+  const getDocumentIcon = (type: string, filename: string = '') => {
+    const isPDF = filename.toLowerCase().endsWith('.pdf') || type.toLowerCase().includes('pdf');
+
+    if (isPDF) {
+      return <FileText className="h-4 w-4" />;
+    }
+
+    if (type.includes('image') || ['passport', 'aadhaar_front', 'aadhaar_back', 'voter_id', 'pan', 'cibil_report', 'police_clearance', 'experience', 'pg'].includes(type)) {
       return <Image className="h-4 w-4" />;
     }
-    return <FileText className="h-4 w-4" />;
-  };
 
+    return <File className="h-4 w-4" />;
+  };
   const formatDocumentType = (type: string) => {
     return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const isImageDocument = (doc: ApplicationDocument) => {
+    return doc.document_type.includes('image') ||
+      ['passport', 'aadhaar_front', 'aadhaar_back', 'voter_id', 'pan', 'cibil_report', 'police_clearance', 'experience', 'pg'].includes(doc.document_type) ||
+      doc.original_filename.toLowerCase().match(/\.(jpg|jpeg|png|gif|bmp|webp)$/);
   };
 
   const DocumentPreviewModal = () => {
@@ -453,9 +672,6 @@ export function OnboardingDashboard() {
                       transformOrigin: 'center',
                       transition: 'transform 0.2s ease-in-out'
                     }}
-                    onLoad={(e) => {
-                      console.log('Image loaded successfully');
-                    }}
                     onError={(e) => {
                       console.error('Image failed to load:', previewDocument.image);
                       const target = e.target as HTMLImageElement;
@@ -495,6 +711,8 @@ export function OnboardingDashboard() {
     );
   };
 
+
+
   const DocumentsDialog = ({ application }: { application: OnboardingApplication }) => (
     <Dialog>
       <DialogTrigger asChild>
@@ -524,7 +742,7 @@ export function OnboardingDashboard() {
               <Card key={index} className="p-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    {getDocumentIcon(doc.document_type)}
+                    {getDocumentIcon(doc.document_type, doc.original_filename)}
                     <span className="font-medium text-sm">{doc.original_filename}</span>
                   </div>
                   <Button
@@ -542,18 +760,38 @@ export function OnboardingDashboard() {
                   <div>Size: {(doc.file_size / 1024).toFixed(1)} KB</div>
                 </div>
 
-                {/* Updated clickable preview */}
+                {/* Updated clickable download/preview */}
                 <div
                   className="mt-2 p-2 bg-muted rounded border-dashed border-2 cursor-pointer hover:bg-muted/80 transition-colors"
                   onClick={() => {
-                    setPreviewDocument(doc);
-                    resetImageTransform();
+                    if (isPDFDocument(doc)) {
+                      // PDF files should be downloaded directly
+                      downloadDocument(doc);
+                    } else if (isImageDocument(doc)) {
+                      // Image files should be previewed
+                      setPreviewDocument(doc);
+                    } else {
+                      // Other files should be downloaded
+                      downloadDocument(doc);
+                    }
                   }}
                 >
                   <div className="text-xs text-center text-muted-foreground flex items-center justify-center gap-2">
-                    {getDocumentIcon(doc.document_type)}
-                    <span>Click to preview</span>
-                    <Eye className="h-3 w-3" />
+                    {getDocumentIcon(doc.document_type, doc.original_filename)}
+                    <span>
+                      {isPDFDocument(doc)
+                        ? 'Click to download'
+                        : isImageDocument(doc)
+                          ? 'Click to preview'
+                          : 'Click to download'
+                      }
+                    </span>
+                    {isPDFDocument(doc)
+                      ? <Download className="h-3 w-3" />
+                      : isImageDocument(doc)
+                        ? <Eye className="h-3 w-3" />
+                        : <Download className="h-3 w-3" />
+                    }
                   </div>
                 </div>
               </Card>
@@ -588,8 +826,7 @@ export function OnboardingDashboard() {
     ];
   };
 
-  // Get unique departments from current applications for filter options
-  const departments = [...new Set(applications.map(app => app.education_employment?.branch).filter(Boolean))];
+  // Use allBranches for the dropdown instead of filtering based on current applications
 
   // Pagination functions
   const handlePageChange = (page: number) => {
@@ -666,7 +903,7 @@ export function OnboardingDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-secondary/20 p-6">
-      <div className="max-w-7xl mx-auto space-y-6">
+      <div className="space-y-6">
         {/* Header */}
         <Card className="shadow-lg">
           <CardHeader className="bg-gradient-to-r from-primary to-primary-hover text-primary-foreground">
@@ -755,7 +992,7 @@ export function OnboardingDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Branches</SelectItem>
-                  {departments.map(dept => (
+                  {allBranches.map(dept => (
                     <SelectItem key={dept} value={dept}>{dept}</SelectItem>
                   ))}
                 </SelectContent>
@@ -803,9 +1040,12 @@ export function OnboardingDashboard() {
         {/* Applications Table */}
         <Card className="shadow-md">
           <CardHeader className="flex flex-row items-center justify-between">
-            <div>
+            <div className="p-2">
               <CardTitle>Applications ({applications.length})</CardTitle>
-              <CardDescription>Manage employee onboarding applications</CardDescription>
+              <div className="mt-3">
+                <CardDescription>Manage employee onboarding applications</CardDescription>
+              </div>
+
             </div>
             <div className="flex gap-2">
               <Button onClick={() => handleDownload("excel")} variant="outline" size="sm" disabled={applications.length === 0}>

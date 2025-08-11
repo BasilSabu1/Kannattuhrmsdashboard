@@ -5,10 +5,16 @@ import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const navigate = useNavigate();
-  
+
   const handleLogin = () => {
     navigate('/login');
   };
+
+  const handleGetStarted = () => {
+    window.open('https://kannattuobroadhrms.vercel.app', '_blank');
+  };
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
@@ -23,7 +29,7 @@ const Index = () => {
               Kannattu HRMS
             </span>
           </div>
-          <Button 
+          <Button
             onClick={handleLogin}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
           >
@@ -46,15 +52,14 @@ const Index = () => {
           <div className="mb-8">
             <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
               <span className="bg-gradient-to-r from-gray-800 via-gray-700 to-gray-600 bg-clip-text text-transparent">
-                Modern HR
-              </span>
+                Smart Onboarding               </span>
               <br />
               <span className="bg-gradient-to-r from-blue-600 via-purple-600 to-pink-600 bg-clip-text text-transparent">
-                Simplified
+              Starts Here
               </span>
             </h1>
             <p className="text-xl md:text-2xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
-              Streamline your human resources with our intuitive, cloud-based management platform
+            Start your journey with a seamless and paperless onboarding experience.
             </p>
           </div>
 
@@ -81,9 +86,9 @@ const Index = () => {
           </div>
 
           {/* CTA Button */}
-          <Button 
+          <Button
             size="lg"
-            onClick={handleLogin}
+            onClick={handleGetStarted}
             className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white px-12 py-4 text-lg rounded-2xl shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
           >
             Get Started
