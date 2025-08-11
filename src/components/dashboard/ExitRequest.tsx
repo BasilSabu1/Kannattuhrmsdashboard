@@ -208,9 +208,9 @@ function ExitRequest({ role }: ExitRequestProps) {
       );
       setTimeout(() => {
         setStatusUpdating(null);
-      }, 2000);
+      }, 250);
 
-      await refreshResignationSilently();
+      // await refreshResignationSilently();
       // alert('Successfully updated status');
     } catch (error) {
       console.error('Failed to update status', error);

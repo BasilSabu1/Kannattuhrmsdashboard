@@ -163,8 +163,8 @@ export function OffboardingDashboard({
       setError(null);
 
       const params = new URLSearchParams();
-    params.append('page', '1');
-    params.append('limit', '100');
+      params.append('page', '1');
+      params.append('limit', '100');
       const res = await axiosInstance.get(
         API_URLS.RESIGNATION.GET_RESIGNATIONS
       );
@@ -317,14 +317,6 @@ export function OffboardingDashboard({
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle>Recent Exit Requests</CardTitle>
-                <p
-                  onClick={() => {
-                    if (onViewMoreClick) onViewMoreClick();
-                  }}
-                  className="underline text-blue-500 cursor-pointer hover:text-blue-700 transition-all duration-300 "
-                >
-                  View more
-                </p>
               </div>
             </CardHeader>
             <CardContent>
