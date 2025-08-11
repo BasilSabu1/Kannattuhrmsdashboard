@@ -73,7 +73,7 @@ interface ApiResponse {
 
 function ExitRequest({ role }: ExitRequestProps) {
   const [search, setSearch] = useState('');
-  const [searchQuery, setSearchQuery] = useState(''); // New state for debounced search
+  const [searchQuery, setSearchQuery] = useState(''); 
   const [statusFilter, setStatusFilter] = useState<
     'all' | 'pending' | 'approved' | 'rejected'
   >('all');
@@ -87,20 +87,25 @@ function ExitRequest({ role }: ExitRequestProps) {
   const searchInputRef = useRef<HTMLInputElement>(null);
   const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
-  // Debounced search effect with better handling for deletions
   useEffect(() => {
     const timer = setTimeout(() => {
       if (search !== searchQuery) {
         setSearchQuery(search);
         setCurrentPage(1);
       }
-    }, 500); // Increased debounce time to 500ms for better UX
+    }, 500); 
 
     return () => clearTimeout(timer);
   }, [search, searchQuery]);
 
   const getResignation = async () => {
     try {
+      
+      const isSearchOperation = searchQuery.trim() !== '';
+      if (!isSearchOperation) {
+        setLoading(true);
+      }
+
       setLoading(true);
       setError(null);
       const params = new URLSearchParams();
@@ -145,7 +150,7 @@ function ExitRequest({ role }: ExitRequestProps) {
       setTotalItems(0);
     } finally {
       setLoading(false);
-      // Keep focus on search input
+      
       setTimeout(() => {
         if (searchInputRef.current) {
           searchInputRef.current.focus();

@@ -115,7 +115,7 @@ const Index = () => {
           </div>
         </div>
 
-        {/* Floating Cards - Hidden on mobile and small tablets */}
+       
         {/* Floating Cards - Hidden on mobile and small tablets */}
         <div className="absolute bottom-12 left-4 sm:left-8 md:left-12 hidden md:block">
           <Card className="p-4 sm:p-6 bg-white/80 backdrop-blur-sm shadow-xl border-0 transform rotate-3 hover:rotate-0 transition-all duration-500">
